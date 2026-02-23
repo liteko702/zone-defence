@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Zone Defence</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a1a; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Courier New', monospace; }
+        canvas { display: block; image-rendering: pixelated; }
+        #ui-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: none; z-index: 10;
+        }
+        #ui-overlay.active { pointer-events: auto; }
+        .screen {
+            display: none; flex-direction: column; align-items: center; gap: 20px;
+            background: rgba(10, 10, 30, 0.95); border: 2px solid #0ff;
+            padding: 40px 60px; border-radius: 8px; text-align: center;
+        }
+        .screen.visible { display: flex; }
+        .screen h1 { color: #0ff; font-size: 2rem; text-shadow: 0 0 20px #0ff; }
+        .screen h2 { color: #0ff; font-size: 1.4rem; }
+        .screen p { color: #aac; font-size: 0.9rem; line-height: 1.6; max-width: 400px; }
+        .screen .stat { color: #ff0; font-size: 1.1rem; }
+        .btn {
+            background: none; border: 2px solid #0ff; color: #0ff; padding: 12px 32px;
+            font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 4px;
+            transition: all 0.2s; pointer-events: auto;
+        }
+        .btn:hover { background: #0ff; color: #0a0a1a; }
+        #hud {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            display: flex; justify-content: space-between; color: #0ff;
+            font-size: 14px; z-index: 5; pointer-events: none;
+        }
+        #hud span { background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px; }
+        /* Mobile d-pad */
+        #dpad {
+            display: none; position: absolute; bottom: 30px; left: 50%;
+            transform: translateX(-50%); z-index: 20; pointer-events: auto;
+        }
+        .dpad-btn {
+            position: absolute; width: 60px; height: 60px; background: rgba(0,255,255,0.15);
+            border: 2px solid rgba(0,255,255,0.4); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: rgba(0,255,255,0.7); font-size: 24px; touch-action: none; user-select: none;
+        }
+        .dpad-btn:active, .dpad-btn.pressed { background: rgba(0,255,255,0.35); }
+        #dpad-up { left: 65px; top: 0; }
+        #dpad-down { left: 65px; top: 130px; }
+        #dpad-left { left: 0; top: 65px; }
+        #dpad-right { left: 130px; top: 65px; }
+        @media (pointer: coarse), (max-width: 768px) { #dpad { display: block; } }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <div id="hud" style="display:none">
+        <span id="hud-level">Level 1</span>
+        <span id="hud-claimed">Claimed: 0%</span>
+        <span id="hud-lives">♥♥♥</span>
+    </div>
+    <div id="ui-overlay" class="active">
+        <div class="screen visible" id="title-screen">
+            <h1>⬡ ZONE DEFENCE ⬡</h1>
+            <p>Claim territory by drawing lines across the field.<br>
+            Avoid enemies — if they touch you or your line, you lose a life!<br><br>
+            <strong>Arrow keys / D-pad</strong> to move<br>
+            Claim <strong>75%</strong> of the field to advance.</p>
+            <button class="btn" id="btn-start">START GAME</button>
+        </div>
+        <div class="screen" id="level-screen">
+            <h2 id="level-title">Level 1</h2>
+            <p id="level-desc"></p>
+            <button class="btn" id="btn-level">BEGIN</button>
+        </div>
+        <div class="screen" id="death-screen">
+            <h2 style="color:#f44">☠ HIT!</h2>
+            <p class="stat" id="death-info"></p>
+            <button class="btn" id="btn-retry">CONTINUE</button>
+        </div>
+        <div class="screen" id="gameover-screen">
+            <h2 style="color:#f44">GAME OVER</h2>
+            <p class="stat" id="gameover-info"></p>
+            <button class="btn" id="btn-restart">RESTART</button>
+        </div>
+        <div class="screen" id="win-screen">
+            <h2 style="color:#0f0">✦ LEVEL COMPLETE ✦</h2>
+            <p class="stat" id="win-info"></p>
+            <button class="btn" id="btn-next">NEXT LEVEL</button>
+        </div>
+        <div class="screen" id="complete-screen">
+            <h1 style="color:#ff0">🏆 YOU WIN! 🏆</h1>
+            <p class="stat">You conquered all zones!</p>
+            <button class="btn" id="btn-playagain">PLAY AGAIN</button>
+        </div>
+    </div>
+    <div id="dpad">
+        <div class="dpad-btn" id="dpad-up">▲</div>
+        <div class="dpad-btn" id="dpad-down">▼</div>
+        <div class="dpad-btn" id="dpad-left">◀</div>
+        <div class="dpad-btn" id="dpad-right">▶</div>
+    </div>
+
+<script>
+(() => {
+    // -----------------------------------------------------------------------
+    // CONSTANTS
+    // -----------------------------------------------------------------------
+    const CELL = 8;           // pixel size of each grid cell
+    const COLS = 60;
+    const ROWS = 45;
+    const W = COLS * CELL;
+    const H = ROWS * CELL;
+    const PLAYER_SPEED = 8;   // cells per second (on border)
+    const TRAIL_SPEED = 6;    // cells per second (while cutting)
+    const CLAIM_PERCENT = 75; // % needed to clear level
+
+    // Cell states
+    const EMPTY = 0;
+    const BORDER = 1;
+    const CLAIMED = 2;
+    const TRAIL = 3;
+
+    // Directions: dx, dy
+    const DIR = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0], none: [0, 0] };
+
+    // -----------------------------------------------------------------------
+    // LEVEL DEFINITIONS
+    // -----------------------------------------------------------------------
+    const LEVELS = [
+        {
+            name: "Level 1 — The Basics",
+            desc: "One slow enemy. Learn to claim territory by venturing out and returning to your border.",
+            enemies: [{ speed: 3, bounce: true }],
+            lives: 3,
+            claimTarget: 75,
+        },
+        {
+            name: "Level 2 — Double Trouble",
+            desc: "Two enemies, slightly faster. Watch your trail!",
+            enemies: [{ speed: 3.5, bounce: true }, { speed: 3.5, bounce: true }],
+            lives: 3,
+            claimTarget: 75,
+        },
+        {
+            name: "Level 3 — The Chaser",
+            desc: "One enemy chases you directly! Keep moving.",
+            enemies: [{ speed: 3, bounce: true }, { speed: 2.5, chase: true }],
+            lives: 3,
+            claimTarget: 75,
+        },
+        {
+            name: "Level 4 — Swarm",
+            desc: "Three bouncers and a chaser. Plan your cuts carefully.",
+            enemies: [
+                { speed: 4, bounce: true }, { speed: 4, bounce: true },
+                { speed: 3.5, bounce: true }, { speed: 2.8, chase: true }
+            ],
+            lives: 3,
+            claimTarget: 80,
+        },
+        {
+            name: "Level 5 — Speed Demon",
+            desc: "Fast enemies everywhere. Claim 80% to survive.",
+            enemies: [
+                { speed: 5, bounce: true }, { speed: 5, bounce: true },
+                { speed: 4.5, bounce: true }, { speed: 3.5, chase: true },
+                { speed: 3.5, chase: true }
+            ],
+            lives: 4,
+            claimTarget: 80,
+        },
+        {
+            name: "Level 6 — The Gauntlet",
+            desc: "Six enemies, two chasers. Claim 85% to win the game!",
+            enemies: [
+                { speed: 5.5, bounce: true }, { speed: 5.5, bounce: true },
+                { speed: 5, bounce: true }, { speed: 5, bounce: true },
+                { speed: 4, chase: true }, { speed: 3.5, chase: true }
+            ],
+            lives: 5,
+            claimTarget: 85,
+        },
+    ];
+
+    // -----------------------------------------------------------------------
+    // CANVAS SETUP
+    // -----------------------------------------------------------------------
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    canvas.width = W;
+    canvas.height = H;
+
+    // Scale canvas to fit screen
+    function fitCanvas() {
+        const scaleX = window.innerWidth / W;
+        const scaleY = window.innerHeight / H;
+        const scale = Math.min(scaleX, scaleY);
+        canvas.style.width = (W * scale) + 'px';
+        canvas.style.height = (H * scale) + 'px';
+    }
+    fitCanvas();
+    window.addEventListener('resize', fitCanvas);
+
+    // -----------------------------------------------------------------------
+    // GAME STATE
+    // -----------------------------------------------------------------------
+    let grid = [];          // 2D array [row][col]
+    let player = {};
+    let enemies = [];
+    let trail = [];         // array of {x, y}
+    let currentLevel = 0;
+    let lives = 3;
+    let totalCells = 0;     // total claimable cells
+    let claimedCells = 0;
+    let state = 'title';    // title | levelIntro | playing | dying | dead | won | complete
+    let deathTimer = 0;
+    let inputDir = 'none';
+    let queuedDir = 'none';
+
+    // -----------------------------------------------------------------------
+    // INPUT
+    // -----------------------------------------------------------------------
+    const keys = {};
+    window.addEventListener('keydown', e => {
+        keys[e.key] = true;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+    });
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    function readInput() {
+        if (keys['ArrowUp'] || keys['w']) return 'up';
+        if (keys['ArrowDown'] || keys['s']) return 'down';
+        if (keys['ArrowLeft'] || keys['a']) return 'left';
+        if (keys['ArrowRight'] || keys['d']) return 'right';
+        return dpadDir || 'none';
+    }
+
+    // D-pad touch controls
+    let dpadDir = null;
+    ['up', 'down', 'left', 'right'].forEach(dir => {
+        const el = document.getElementById('dpad-' + dir);
+        const start = (e) => { e.preventDefault(); dpadDir = dir; el.classList.add('pressed'); };
+        const end = (e) => { e.preventDefault(); if (dpadDir === dir) dpadDir = null; el.classList.remove('pressed'); };
+        el.addEventListener('touchstart', start, { passive: false });
+        el.addEventListener('touchend', end, { passive: false });
+        el.addEventListener('touchcancel', end, { passive: false });
+    });
+
+    // -----------------------------------------------------------------------
+    // GRID HELPERS
+    // -----------------------------------------------------------------------
+    function initGrid() {
+        grid = [];
+        for (let r = 0; r < ROWS; r++) {
+            grid[r] = [];
+            for (let c = 0; c < COLS; c++) {
+                // Border is the outer 1-cell ring
+                grid[r][c] = (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) ? BORDER : EMPTY;
+            }
+        }
+        totalCells = (COLS - 2) * (ROWS - 2); // interior cells
+        claimedCells = 0;
+    }
+
+    function cellAt(x, y) {
+        if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return BORDER;
+        return grid[y][x];
+    }
+
+    function isOnBorder(x, y) {
+        return cellAt(x, y) === BORDER || cellAt(x, y) === CLAIMED;
+    }
+
+    // Flood fill to claim territory. After trail forms a closed region,
+    // fill the side that does NOT contain enemies.
+    function claimTerritory() {
+        // Convert trail to claimed
+        for (const t of trail) {
+            grid[t.y][t.x] = CLAIMED;
+        }
+        trail = [];
+
+        // Flood fill from each empty region. If a region contains an enemy, don't claim it.
+        const visited = Array.from({ length: ROWS }, () => new Uint8Array(COLS));
+        const regions = [];
+
+        for (let r = 1; r < ROWS - 1; r++) {
+            for (let c = 1; c < COLS - 1; c++) {
+                if (grid[r][c] !== EMPTY || visited[r][c]) continue;
+
+                // BFS flood fill
+                const region = [];
+                const queue = [{ x: c, y: r }];
+                visited[r][c] = 1;
+                let hasEnemy = false;
+
+                while (queue.length > 0) {
+                    const { x, y } = queue.shift();
+                    region.push({ x, y });
+
+                    // Check if any enemy is in this cell
+                    for (const e of enemies) {
+                        const ex = Math.round(e.x);
+                        const ey = Math.round(e.y);
+                        if (ex === x && ey === y) hasEnemy = true;
+                    }
+
+                    for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx < 1 || nx >= COLS-1 || ny < 1 || ny >= ROWS-1) continue;
+                        if (visited[ny][nx] || grid[ny][nx] !== EMPTY) continue;
+                        visited[ny][nx] = 1;
+                        queue.push({ x: nx, y: ny });
+                    }
+                }
+
+                regions.push({ cells: region, hasEnemy });
+            }
+        }
+
+        // Claim all regions that don't contain enemies
+        for (const region of regions) {
+            if (!region.hasEnemy) {
+                for (const { x, y } of region.cells) {
+                    grid[y][x] = CLAIMED;
+                    claimedCells++;
+                }
+            }
+        }
+
+        // Count total claimed
+        claimedCells = 0;
+        for (let r = 1; r < ROWS - 1; r++) {
+            for (let c = 1; c < COLS - 1; c++) {
+                if (grid[r][c] === CLAIMED) claimedCells++;
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // PLAYER
+    // -----------------------------------------------------------------------
+    function initPlayer() {
+        player = {
+            x: Math.floor(COLS / 2),
+            y: 0,
+            moveTimer: 0,
+            cutting: false, // true when player is off the border
+            dir: 'none',
+        };
+        trail = [];
+        inputDir = 'none';
+    }
+
+    function movePlayer(dt) {
+        const newDir = readInput();
+        if (newDir !== 'none') inputDir = newDir;
+
+        // Only move on timer
+        const speed = player.cutting ? TRAIL_SPEED : PLAYER_SPEED;
+        player.moveTimer += dt * speed;
+
+        if (player.moveTimer < 1) return;
+        player.moveTimer -= 1;
+
+        const dir = inputDir;
+        if (dir === 'none') { player.moveTimer = 0; return; }
+
+        const [dx, dy] = DIR[dir];
+        const nx = player.x + dx;
+        const ny = player.y + dy;
+
+        // Can't move outside the grid
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) { player.moveTimer = 0; return; }
+
+        const destCell = cellAt(nx, ny);
+
+        if (player.cutting) {
+            // If we hit our own trail — die
+            if (destCell === TRAIL) {
+                killPlayer();
+                return;
+            }
+            // If we return to border/claimed — complete the cut
+            if (destCell === BORDER || destCell === CLAIMED) {
+                player.x = nx;
+                player.y = ny;
+                player.cutting = false;
+                claimTerritory();
+                checkWin();
+                return;
+            }
+            // Otherwise continue cutting through empty space
+            trail.push({ x: player.x, y: player.y });
+            grid[player.y][player.x] = TRAIL;
+            player.x = nx;
+            player.y = ny;
+        } else {
+            // On the border: can move along border or venture into empty
+            if (destCell === BORDER || destCell === CLAIMED) {
+                player.x = nx;
+                player.y = ny;
+            } else if (destCell === EMPTY) {
+                // Start cutting!
+                trail.push({ x: player.x, y: player.y });
+                // Don't mark old position as trail if it was border
+                player.cutting = true;
+                player.x = nx;
+                player.y = ny;
+            }
+        }
+    }
+
+    function killPlayer() {
+        // Clear trail
+        for (const t of trail) {
+            grid[t.y][t.x] = EMPTY;
+        }
+        trail = [];
+        player.cutting = false;
+        lives--;
+        if (lives <= 0) {
+            state = 'dead';
+            showScreen('gameover-screen', { info: `You reached level ${currentLevel + 1} with ${getClaimPercent()}% claimed.` });
+        } else {
+            state = 'dying';
+            deathTimer = 0.5;
+        }
+    }
+
+    function getClaimPercent() {
+        return Math.floor((claimedCells / totalCells) * 100);
+    }
+
+    function checkWin() {
+        const pct = getClaimPercent();
+        const level = LEVELS[currentLevel];
+        if (pct >= level.claimTarget) {
+            state = 'won';
+            if (currentLevel >= LEVELS.length - 1) {
+                showScreen('complete-screen');
+            } else {
+                showScreen('win-screen', { info: `Claimed ${pct}% of the zone!` });
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // ENEMIES
+    // -----------------------------------------------------------------------
+    function initEnemies(levelDef) {
+        enemies = [];
+        for (const eDef of levelDef.enemies) {
+            // Spawn in a random empty interior cell
+            let ex, ey;
+            do {
+                ex = 5 + Math.floor(Math.random() * (COLS - 10));
+                ey = 5 + Math.floor(Math.random() * (ROWS - 10));
+            } while (grid[ey][ex] !== EMPTY);
+
+            const angle = Math.random() * Math.PI * 2;
+            enemies.push({
+                x: ex, y: ey,
+                // Fractional position for smooth movement
+                fx: ex, fy: ey,
+                dx: Math.cos(angle), dy: Math.sin(angle),
+                speed: eDef.speed,
+                chase: eDef.chase || false,
+                bounce: eDef.bounce || false,
+                moveTimer: 0,
+            });
+        }
+    }
+
+    function moveEnemies(dt) {
+        for (const e of enemies) {
+            if (e.chase) {
+                // Chase player
+                const pdx = player.x - e.x;
+                const pdy = player.y - e.y;
+                const dist = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
+                e.dx = pdx / dist;
+                e.dy = pdy / dist;
+            }
+
+            e.fx += e.dx * e.speed * dt;
+            e.fy += e.dy * e.speed * dt;
+
+            const newX = Math.round(e.fx);
+            const newY = Math.round(e.fy);
+
+            // Bounce off borders and claimed areas
+            const cell = cellAt(newX, newY);
+            if (cell === BORDER || cell === CLAIMED || newX < 1 || newX >= COLS-1 || newY < 1 || newY >= ROWS-1) {
+                // Reflect
+                if (e.chase) {
+                    // Chaser: nudge away from wall
+                    e.fx -= e.dx * e.speed * dt;
+                    e.fy -= e.dy * e.speed * dt;
+                    // Add random perturbation
+                    e.dx += (Math.random() - 0.5) * 0.5;
+                    e.dy += (Math.random() - 0.5) * 0.5;
+                    const len = Math.sqrt(e.dx*e.dx + e.dy*e.dy) || 1;
+                    e.dx /= len; e.dy /= len;
+                } else {
+                    // Bounce: reflect off wall
+                    e.fx -= e.dx * e.speed * dt * 2;
+                    e.fy -= e.dy * e.speed * dt * 2;
+                    // Determine which axis to reflect
+                    const testX = cellAt(Math.round(e.fx + e.dx * 0.5), Math.round(e.fy));
+                    const testY = cellAt(Math.round(e.fx), Math.round(e.fy + e.dy * 0.5));
+                    if (testX === BORDER || testX === CLAIMED) e.dx = -e.dx;
+                    if (testY === BORDER || testY === CLAIMED) e.dy = -e.dy;
+                    // Add slight randomness to avoid loops
+                    e.dx += (Math.random() - 0.5) * 0.2;
+                    e.dy += (Math.random() - 0.5) * 0.2;
+                    const len = Math.sqrt(e.dx*e.dx + e.dy*e.dy) || 1;
+                    e.dx /= len; e.dy /= len;
+                }
+            }
+
+            e.x = Math.round(e.fx);
+            e.y = Math.round(e.fy);
+
+            // Check collision with trail
+            if (cellAt(e.x, e.y) === TRAIL) {
+                killPlayer();
+                return;
+            }
+
+            // Check collision with player (when player is cutting)
+            if (player.cutting) {
+                const pdx = player.x - e.fx;
+                const pdy = player.y - e.fy;
+                if (pdx * pdx + pdy * pdy < 1.5) {
+                    killPlayer();
+                    return;
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // RENDERING
+    // -----------------------------------------------------------------------
+    const COLORS = {
+        [EMPTY]: '#0a0a2a',
+        [BORDER]: '#224',
+        [CLAIMED]: '#1a3a5a',
+        [TRAIL]: '#ff0',
+    };
+
+    function render(time) {
+        ctx.fillStyle = '#0a0a1a';
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw grid
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const cell = grid[r][c];
+                if (cell === EMPTY) continue; // skip drawing empty (bg already dark)
+                ctx.fillStyle = COLORS[cell];
+                if (cell === CLAIMED) {
+                    // Subtle grid pattern on claimed
+                    const brightness = ((r + c) % 2 === 0) ? '#1a3a5a' : '#183858';
+                    ctx.fillStyle = brightness;
+                }
+                ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+            }
+        }
+
+        // Draw trail with glow
+        if (trail.length > 0) {
+            ctx.fillStyle = '#ff0';
+            for (const t of trail) {
+                ctx.fillRect(t.x * CELL + 1, t.y * CELL + 1, CELL - 2, CELL - 2);
+            }
+            // Current cutting position
+            if (player.cutting) {
+                ctx.fillStyle = '#ff8';
+                ctx.fillRect(player.x * CELL, player.y * CELL, CELL, CELL);
+            }
+        }
+
+        // Draw border with subtle highlight
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (grid[r][c] === BORDER) {
+                    ctx.strokeRect(c * CELL + 0.5, r * CELL + 0.5, CELL - 1, CELL - 1);
+                }
+            }
+        }
+
+        // Draw enemies
+        const pulse = 0.7 + 0.3 * Math.sin(time * 0.005);
+        for (const e of enemies) {
+            const ex = e.fx * CELL + CELL / 2;
+            const ey = e.fy * CELL + CELL / 2;
+            const radius = CELL * 0.5;
+
+            // Glow
+            ctx.beginPath();
+            ctx.arc(ex, ey, radius + 4, 0, Math.PI * 2);
+            ctx.fillStyle = e.chase ? `rgba(255, 80, 80, ${0.3 * pulse})` : `rgba(255, 100, 255, ${0.3 * pulse})`;
+            ctx.fill();
+
+            // Body
+            ctx.beginPath();
+            ctx.arc(ex, ey, radius, 0, Math.PI * 2);
+            ctx.fillStyle = e.chase ? '#f44' : '#f0f';
+            ctx.fill();
+
+            // Eyes (direction indicators)
+            const eyeOff = radius * 0.3;
+            const eyeX = ex + e.dx * eyeOff;
+            const eyeY = ey + e.dy * eyeOff;
+            ctx.beginPath();
+            ctx.arc(eyeX - 1, eyeY, 1.5, 0, Math.PI * 2);
+            ctx.arc(eyeX + 1, eyeY, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+        }
+
+        // Draw player
+        if (state === 'playing' || state === 'dying') {
+            const px = player.x * CELL;
+            const py = player.y * CELL;
+
+            // Glow
+            ctx.shadowColor = '#0ff';
+            ctx.shadowBlur = player.cutting ? 15 : 8;
+            ctx.fillStyle = player.cutting ? '#ff0' : '#0ff';
+            ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+            ctx.shadowBlur = 0;
+
+            // Direction indicator
+            const [ddx, ddy] = DIR[inputDir] || [0, 0];
+            if (ddx !== 0 || ddy !== 0) {
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                ctx.fillRect(px + CELL/2 + ddx * 3 - 1, py + CELL/2 + ddy * 3 - 1, 2, 2);
+            }
+        }
+
+        // Flash on death
+        if (state === 'dying') {
+            const flash = Math.sin(deathTimer * 30) > 0;
+            if (flash) {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // UI
+    // -----------------------------------------------------------------------
+    function showScreen(id, opts = {}) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+        const screen = document.getElementById(id);
+        screen.classList.add('visible');
+        document.getElementById('ui-overlay').classList.add('active');
+
+        if (opts.info) {
+            const infoEl = screen.querySelector('.stat');
+            if (infoEl) infoEl.textContent = opts.info;
+        }
+    }
+
+    function hideScreens() {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+        document.getElementById('ui-overlay').classList.remove('active');
+    }
+
+    function updateHUD() {
+        document.getElementById('hud-level').textContent = LEVELS[currentLevel].name.split('—')[0].trim();
+        document.getElementById('hud-claimed').textContent = `Claimed: ${getClaimPercent()}% / ${LEVELS[currentLevel].claimTarget}%`;
+        document.getElementById('hud-lives').textContent = '♥'.repeat(lives) + '♡'.repeat(Math.max(0, LEVELS[currentLevel].lives - lives));
+    }
+
+    // -----------------------------------------------------------------------
+    // LEVEL MANAGEMENT
+    // -----------------------------------------------------------------------
+    function startLevel(levelIdx) {
+        currentLevel = levelIdx;
+        const level = LEVELS[levelIdx];
+        lives = level.lives;
+        initGrid();
+        initPlayer();
+        initEnemies(level);
+        inputDir = 'none';
+
+        // Show level intro
+        document.getElementById('level-title').textContent = level.name;
+        document.getElementById('level-desc').textContent = level.desc;
+        showScreen('level-screen');
+        state = 'levelIntro';
+    }
+
+    function beginLevel() {
+        hideScreens();
+        document.getElementById('hud').style.display = 'flex';
+        state = 'playing';
+    }
+
+    function respawn() {
+        // Clear trail
+        for (const t of trail) {
+            grid[t.y][t.x] = EMPTY;
+        }
+        trail = [];
+        player.cutting = false;
+        player.x = Math.floor(COLS / 2);
+        player.y = 0;
+        player.moveTimer = 0;
+        inputDir = 'none';
+        hideScreens();
+        state = 'playing';
+    }
+
+    // -----------------------------------------------------------------------
+    // BUTTON HANDLERS
+    // -----------------------------------------------------------------------
+    document.getElementById('btn-start').onclick = () => startLevel(0);
+    document.getElementById('btn-level').onclick = () => beginLevel();
+    document.getElementById('btn-retry').onclick = () => respawn();
+    document.getElementById('btn-restart').onclick = () => {
+        hideScreens();
+        startLevel(0);
+    };
+    document.getElementById('btn-next').onclick = () => startLevel(currentLevel + 1);
+    document.getElementById('btn-playagain').onclick = () => {
+        hideScreens();
+        startLevel(0);
+    };
+
+    // -----------------------------------------------------------------------
+    // GAME LOOP
+    // -----------------------------------------------------------------------
+    let lastTime = 0;
+
+    function gameLoop(time) {
+        const dt = Math.min((time - lastTime) / 1000, 0.05);
+        lastTime = time;
+
+        if (state === 'playing') {
+            movePlayer(dt);
+            moveEnemies(dt);
+            updateHUD();
+        }
+
+        if (state === 'dying') {
+            deathTimer -= dt;
+            if (deathTimer <= 0) {
+                state = 'playing'; // will show death screen below
+                showScreen('death-screen', { info: `${lives} ${lives === 1 ? 'life' : 'lives'} remaining. ${getClaimPercent()}% claimed.` });
+                state = 'dying'; // keep state for render flash
+                // Actually transition after showing screen
+                state = 'dead_pause';
+            }
+        }
+
+        render(time);
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Start
+    initGrid();
+    requestAnimationFrame(gameLoop);
+})();
+</script>
+</body>
+</html>
