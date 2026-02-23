@@ -341,7 +341,7 @@ function render(time){
 
 // ===== LEVEL MAP =====
 const mN=[];
-(()=>{for(let i=0;i<LEVELS.length;i++){const y=GH-50-i*(GH-80)/LEVELS.length;const x=GW/2+Math.sin(i*1.1+0.5)*GW*0.22;mN.push({x,y,lv:i});}})();
+(()=>{for(let i=0;i<LEVELS.length;i++){const y=GH-55-i*(GH-110)/Math.max(1,LEVELS.length-1);const x=GW/2+Math.sin(i*1.1+0.5)*GW*0.2;mN.push({x,y,lv:i});}})();
 let mSel=0;
 
 function renderMap(time){
@@ -374,8 +374,11 @@ function renderMap(time){
             c.fillStyle='#fff';c.font=Math.max(6,nodeR*0.4)+'px "Press Start 2P"';c.textBaseline='bottom';c.fillText(lv.name,n.x,n.y-nodeR-8);
             if(lv.boss){c.fillStyle='#f44';c.fillText('⚠ BOSS',n.x,n.y-nodeR-20);}}
         }else{
-            c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle='#181818';c.fill();c.strokeStyle='#333';c.lineWidth=1;c.stroke();
-            c.fillStyle='#444';c.font=Math.max(7,nodeR*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';c.fillText('?',n.x,n.y+1);
+            // Locked node — visible but dimmed
+            c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle='#1a1a2a';c.fill();
+            c.strokeStyle='#445';c.lineWidth=2;c.stroke();
+            // Lock icon
+            c.fillStyle='#556';c.font=Math.max(8,nodeR*0.55)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';c.fillText('🔒',n.x,n.y+1);
         }
         if(save.stars[i]){c.fillStyle='#ff0';c.font=Math.max(5,nodeR*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';c.fillText('★'.repeat(save.stars[i])+'☆'.repeat(3-save.stars[i]),n.x,n.y+nodeR+4);}
     }
@@ -397,7 +400,7 @@ addEventListener('keydown',e=>{if(state!=='map')return;if(e.key==='ArrowUp'||e.k
 // ===== UI =====
 function showScr(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('vis'));document.getElementById(id).classList.add('vis');document.getElementById('ui').classList.add('active');}
 function hideScr(){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('vis'));document.getElementById('ui').classList.remove('active');}
-function showMap(){state='map';hideScr();document.getElementById('hud').style.display='none';document.getElementById('pov').classList.remove('vis');mSel=Math.min(save.unlocked-1,LEVELS.length-1);}
+function showMap(){state='map';hideScr();document.getElementById('hud').style.display='none';document.getElementById('dp').style.display='none';document.getElementById('pov').classList.remove('vis');mSel=Math.min(save.unlocked-1,LEVELS.length-1);}
 function updateHUD(){
     document.getElementById('h-lv').textContent=''+(curLv+1);document.getElementById('h-sc').textContent=''+score;
     document.getElementById('h-hi').textContent=''+Math.max(save.hi,score);document.getElementById('h-cl').textContent=getPct()+'%/'+LEVELS[curLv].target+'%';
@@ -413,7 +416,7 @@ function startLv(i){
     document.getElementById('l-title').textContent=lv.name+(lv.boss?' ⚠':'');document.getElementById('l-desc').textContent=lv.desc;
     showScr('s-lvl');state='levelIntro';
 }
-function beginLv(){hideScr();document.getElementById('hud').style.display='flex';state='playing';}
+function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.removeProperty('display');state='playing';}
 function respawn(){for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.mt=0;inputDir='none';playerSpeed=8;trailSpeed=6;shieldTimer=0;hideScr();state='playing';}
 
 // ===== BUTTONS =====
