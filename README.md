@@ -19,8 +19,8 @@ Qix-style territory capture game with multiple levels and progressive difficulty
 
 ## Links
 - **Local**: https://zone-defence.kbot
-- **Discord**: (pending)
-- **GitHub**: (pending)
+- **Discord**: https://discord.com/channels/1467871575985623320/1475622825007255654
+- **GitHub**: https://github.com/liteko702/zone-defence
 
 ## Port
 This project uses port `3001`.
