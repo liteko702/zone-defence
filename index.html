@@ -1777,6 +1777,28 @@ function respawn(){const ship=SHIPS[curShip];for(const t of trail)grid[t.y][t.x]
 // Buttons
 window._playClick=()=>{sfxSel();startMusic('menu');showMap();};
 const bPlay=document.getElementById('b-play');bPlay.onclick=bPlay.ontouchend=e=>{e&&e.preventDefault();window._playClick();};
+
+// Start title music on first interaction (any tap/click on page)
+let _titleMusicStarted=false;
+function _startTitleMusic(){
+    if(_titleMusicStarted)return;_titleMusicStarted=true;
+    preloadAudio();
+    if(musicOn&&state==='title'){
+        // Try to play immediately, retry after short delay if not ready
+        const tryPlay=()=>{
+            const key=audioReady('menu')?'menu':(audioReady('theme')?'theme':null);
+            if(key){playFileMusic(key,true,false);}
+            else startSynth('menu');
+        };
+        tryPlay();
+        setTimeout(tryPlay,300);
+        setTimeout(tryPlay,1000);
+    }
+    document.removeEventListener('touchstart',_startTitleMusic);
+    document.removeEventListener('click',_startTitleMusic);
+}
+document.addEventListener('touchstart',_startTitleMusic,{once:true});
+document.addEventListener('click',_startTitleMusic,{once:true});
 document.getElementById('b-how').onclick=()=>{sfxSel();showScr('s-how');};
 document.getElementById('b-how-ok').onclick=()=>{sfxSel();showScr('s-title');};
 document.getElementById('b-go').onclick=()=>{sfxSel();beginLv();};
