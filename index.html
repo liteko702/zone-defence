@@ -388,18 +388,19 @@ function preloadAudio(){
 }
 
 // Determine which music key to use for current scene
+function audioReady(key){return audioCache[key]&&(audioAvailable[key]||audioCache[key].readyState>=2);}
 function getMusicKey(scene){
-    if(scene==='menu')return audioAvailable.menu?'menu':(audioAvailable.theme?'theme':null);
-    if(scene==='title')return audioAvailable.theme?'theme':(audioAvailable.menu?'menu':null);
-    if(scene==='boss')return audioAvailable.boss?'boss':null;
+    if(scene==='menu')return audioReady('menu')?'menu':(audioReady('theme')?'theme':null);
+    if(scene==='title')return audioReady('theme')?'theme':(audioReady('menu')?'menu':null);
+    if(scene==='boss')return audioReady('boss')?'boss':null;
     if(scene==='gameplay'){
-        if(curLv<4)return audioAvailable.galaxy1?'galaxy1':null;
-        if(curLv<8)return audioAvailable.galaxy2?'galaxy2':null;
-        return audioAvailable.galaxy3?'galaxy3':null;
+        if(curLv<4)return audioReady('galaxy1')?'galaxy1':null;
+        if(curLv<8)return audioReady('galaxy2')?'galaxy2':null;
+        return audioReady('galaxy3')?'galaxy3':null;
     }
-    if(scene==='pause')return audioAvailable.pause?'pause':null;
-    if(scene==='victory')return audioAvailable.victory?'victory':null;
-    if(scene==='gameover')return audioAvailable.gameover?'gameover':null;
+    if(scene==='pause')return audioReady('pause')?'pause':null;
+    if(scene==='victory')return audioReady('victory')?'victory':null;
+    if(scene==='gameover')return audioReady('gameover')?'gameover':null;
     return null;
 }
 
@@ -408,7 +409,7 @@ const SFX_VOLUME={sfx_shoot:0.1,sfx_hit:0.3,sfx_claim:0.4,sfx_bigclaim:0.5,sfx_c
 // Play a one-shot SFX file (if available, else use synth fallback)
 function playSfx(key){
     if(!musicOn)return false;
-    if(audioAvailable[key]&&audioCache[key]){
+    if(audioCache[key]&&(audioAvailable[key]||audioCache[key].readyState>=2)){
         const sfx=audioCache[key].cloneNode();
         sfx.volume=SFX_VOLUME[key]??0.4;sfx.play().catch(()=>{});
         return true;
@@ -433,6 +434,7 @@ function stopFileMusic(fade=false){
 function playFileMusic(key,loop=true,fade=true){
     stopFileMusic(fade);
     if(!audioCache[key])return;
+    audioAvailable[key]=true; // mark available since we're attempting play
     currentTrack=audioCache[key];
     currentTrack.loop=loop;
     currentTrack.currentTime=0;
@@ -513,13 +515,19 @@ function startMusic(scene){
     musicScene=scene;
     const key=getMusicKey(scene);
     if(key){
-        // Use real audio file
         const isOneShot=(scene==='victory'||scene==='gameover');
         playFileMusic(key,!isOneShot);
     }else{
-        // Fall back to synth
-        if(scene==='victory'||scene==='gameover')return; // no synth for these
-        startSynth(scene);
+        // Audio might not be loaded yet — try again shortly
+        const retryKey=scene;
+        setTimeout(()=>{
+            if(musicScene!==retryKey)return; // scene changed, abort
+            const k2=getMusicKey(retryKey);
+            if(k2){const os=(retryKey==='victory'||retryKey==='gameover');playFileMusic(k2,!os);}
+            else{if(retryKey!=='victory'&&retryKey!=='gameover')startSynth(retryKey);}
+        },500);
+        // Also try synth immediately as backup
+        if(scene!=='victory'&&scene!=='gameover')startSynth(scene);
     }
 }
 
