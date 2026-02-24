@@ -73,6 +73,7 @@
 <script>
 (()=>{
 // ===== RESPONSIVE CANVAS =====
+var gameReady=false;
 const cv=document.getElementById('cv'),c=cv.getContext('2d');
 let W,H,CELL,COLS,ROWS,scale;
 
@@ -85,7 +86,7 @@ function resize(){
     COLS=Math.floor(W/CELL);
     ROWS=Math.floor(H/CELL);
     // Rebuild grid if playing
-    if(state==='playing'||state==='paused')reinitLevel();
+    if(gameReady&&(state==='playing'||state==='paused'))reinitLevel();
 }
 resize();
 window.addEventListener('resize',()=>{resize();});
@@ -150,6 +151,7 @@ function sfxPow(){beep(440,0.1,'sine',0.08);setTimeout(()=>beep(660,0.1,'sine',0
 // ===== GAME STATE =====
 let grid=[],player={},enemies=[],trail=[],curLv=0,lives=3,totalC=0,claimedC=0,score=0;
 let state='title',prevSt='playing',deathT=0,inputDir='none',moveCt=0;
+gameReady=true;
 let shakeA=0,shakeD=0,claimAC=[],claimAT=0;
 let powerups=[],playerSpeed=8,trailSpeed=6,shieldTimer=0;
 
@@ -393,7 +395,7 @@ function renderMap(time){
             c.fillStyle=sel?`rgba(0,255,200,${0.08+0.06*p})`:`rgba(0,150,255,${0.04+0.03*p})`;c.fill();
             // Planet sphere
             const pg=c.createRadialGradient(n.x-nodeR*0.2,n.y-nodeR*0.2,0,n.x,n.y,nodeR);
-            pg.addColorStop(0,'rgba(255,255,255,0.25)');pg.addColorStop(0.4,lv.color);pg.addColorStop(1,lv.color+'88');
+            pg.addColorStop(0,'rgba(255,255,255,0.25)');pg.addColorStop(0.4,lv.color);pg.addColorStop(1,'rgba(0,0,0,0.3)');
             c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle=pg;c.fill();
             c.strokeStyle='rgba(255,255,255,0.15)';c.lineWidth=1;c.stroke();
             // Number
@@ -403,12 +405,15 @@ function renderMap(time){
             if(sel){const sa=0.4+0.6*Math.sin(time*0.006);c.beginPath();c.arc(n.x,n.y,nodeR+5,0,Math.PI*2);c.strokeStyle=`rgba(0,255,200,${sa})`;c.lineWidth=2;c.stroke();
             c.fillStyle='#fff';c.font=Math.max(7,nodeR*0.35)+'px "Press Start 2P"';c.textBaseline='bottom';c.fillText(lv.name,n.x,n.y-nodeR-10);}
         }else{
-            // Locked — dark with border
-            c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle='#151525';c.fill();
-            c.strokeStyle='#334';c.lineWidth=2;c.stroke();
-            // X mark
-            c.fillStyle='#445';c.font=Math.max(8,nodeR*0.45)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-            c.fillText('X',n.x,n.y);
+            // Locked — visible grey
+            c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle='#222238';c.fill();
+            c.strokeStyle='#556';c.lineWidth=2;c.stroke();
+            // Lock lines
+            c.strokeStyle='#778';c.lineWidth=2;
+            c.beginPath();c.moveTo(n.x-nodeR*0.3,n.y-nodeR*0.1);c.lineTo(n.x+nodeR*0.3,n.y-nodeR*0.1);c.stroke();
+            c.beginPath();c.moveTo(n.x-nodeR*0.3,n.y+nodeR*0.15);c.lineTo(n.x+nodeR*0.3,n.y+nodeR*0.15);c.stroke();
+            c.fillStyle='#667';c.font=Math.max(8,nodeR*0.45)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText(''+(i+1),n.x,n.y);
         }
         // Stars
         if(save.stars[i]){c.fillStyle='#ff0';c.font=Math.max(6,nodeR*0.3)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';c.fillText('*'.repeat(save.stars[i]),n.x,n.y+nodeR+4);}
