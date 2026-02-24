@@ -1410,7 +1410,7 @@ function drawShip(px,py,rot,cutting,time,shipIdx){
         // Weapon pods
         for(const sx2 of[-1,1]){
             c.fillStyle='#334';c.beginPath();
-            c.roundRect(sx2*s*0.5-s*0.04,-s*0.1,s*0.08,s*0.22,2);c.fill();
+            c.fillRect(sx2*s*0.5-s*0.04,-s*0.1,s*0.08,s*0.22);
             c.fillStyle='#ff04';c.beginPath();c.arc(sx2*s*0.5,-s*0.1,s*0.025,0,Math.PI*2);c.fill();
         }
         // Fuselage
@@ -1446,7 +1446,7 @@ function drawShip(px,py,rot,cutting,time,shipIdx){
         // Heavy engines
         for(const sx2 of[-1,1]){
             c.fillStyle='#333';
-            c.beginPath();c.roundRect(sx2*s*0.55-s*0.06,s*0.0,s*0.12,s*0.2,3);c.fill();
+            c.fillRect(sx2*s*0.55-s*0.06,s*0.0,s*0.12,s*0.2);//was roundRect();
             c.fillStyle=`rgba(255,150,0,${0.5+0.3*fl})`;
             c.beginPath();c.moveTo(sx2*s*0.55-s*0.04,s*0.2);c.lineTo(sx2*s*0.55,s*(0.35+0.1*fl));c.lineTo(sx2*s*0.55+s*0.04,s*0.2);c.fill();
         }
@@ -1468,7 +1468,7 @@ function drawShip(px,py,rot,cutting,time,shipIdx){
             const nx=sx2*s*0.42;
             // Nacelle body
             c.fillStyle='#1a3040';
-            c.beginPath();c.roundRect(nx-s*0.05,-s*0.45,s*0.1,s*0.55,3);c.fill();
+            c.fillRect(nx-s*0.05,-s*0.45,s*0.1,s*0.55);//was roundRect();
             c.strokeStyle=c2+'60';c.lineWidth=0.8;c.strokeRect(nx-s*0.05,-s*0.45,s*0.1,s*0.55);
             // Barrel
             c.fillStyle='#556';c.fillRect(nx-s*0.015,-s*0.6,s*0.03,s*0.18);
@@ -1628,7 +1628,7 @@ function drawEnemy(ex,ey,rot,etype,time){
             const segW=s*(0.08+0.04*Math.sin(i*0.5));
             const gc=i===0?'#0e4':'#0a3';
             c.fillStyle=gc;
-            c.beginPath();c.roundRect(wobble-segW,sy2-seg*0.4,segW*2,seg*0.8,segW*0.5);c.fill();
+            c.fillRect(wobble-segW,sy2-seg*0.4,segW*2,seg*0.8);
             // Segment joint lights
             if(i>0){c.fillStyle=`rgba(0,255,100,${0.2+0.2*fl})`;c.beginPath();c.arc(wobble,sy2-seg*0.45,s*0.015,0,Math.PI*2);c.fill();}
         }
