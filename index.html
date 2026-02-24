@@ -174,112 +174,231 @@ phoenix:{stars:[[.5,.1],[.35,.3],[.65,.3],[.2,.5],[.8,.5],[.3,.7],[.7,.7],[.5,.8
   lines:[[0,1],[0,2],[1,3],[2,4],[3,5],[4,6],[5,7],[6,7]]},
 };
 
-// ===== ENEMY TYPES =====
-// bounce=standard bouncer, chase=follows player, phase=teleports,
-// split=splits when shot, shield=needs 2 hits, orbit=circles edges,
-// tracer=follows trail, boss=universe boss (large, shoots rockets)
-
 // ===== STRUCTURE =====
-// UNIVERSE → contains 4 CONSTELLATIONS (playable levels)
-// Each universe introduces new mechanics/enemies/ships
-// Constellation 4 of each universe = BOSS fight
+// UNIVERSE → contains CONSTELLATIONS → each star in constellation = 1 LEVEL
+// Boss level at end of each universe
+// Ordered by constellation star count (easiest first)
+
+const UNIVERSE_CONSTELLATIONS=[
+    // Universe 0: ANDROMEDA (no shooting, learn basics)
+    ['cassiopeia','lyra','cygnus'],
+    // Universe 1: MILKY WAY (shooting unlocks, new enemy types)
+    ['aquila','perseus','phoenix'],
+    // Universe 2: NEBULA PRIME (all enemies, hardest)
+    ['leo','sagittarius','orion'],
+];
 
 const UNIVERSES=[
-  {name:'ANDROMEDA',color:'#0af',constellations:[0,1,2,3],
-   intro:'LEARN THE BASICS.\nCAPTURE TERRITORY.\nAVOID ENEMIES.',
-   unlocks:'Basic zone capture mechanics'},
-  {name:'MILKY WAY',color:'#a0f',constellations:[4,5,6,7],
-   intro:'WEAPONS ONLINE!\nSHOOT TO STUN.\nNEW THREATS EMERGE.',
-   unlocks:'Shooting + Tracer & Shield enemies'},
-  {name:'NEBULA PRIME',color:'#f80',constellations:[8,9,10,11],
-   intro:'THE FINAL FRONTIER.\nALL SYSTEMS ACTIVE.\nSURVIVE THE SWARM.',
-   unlocks:'All enemy types + ultimate challenge'},
+  {name:'ANDROMEDA',color:'#0af',constellations:[], // filled below
+   intro:'LEARN THE BASICS.\nCAPTURE TERRITORY.\nAVOID ENEMIES.',galaxy:0},
+  {name:'MILKY WAY',color:'#a0f',constellations:[],
+   intro:'WEAPONS ONLINE!\nSHOOT TO STUN.\nNEW THREATS EMERGE.',galaxy:1},
+  {name:'NEBULA PRIME',color:'#f80',constellations:[],
+   intro:'THE FINAL FRONTIER.\nALL SYSTEMS ACTIVE.\nSURVIVE THE SWARM.',galaxy:2},
 ];
 
-const LEVELS=[
-// === UNIVERSE 1: ANDROMEDA (pure zone capture) ===
-{name:"ORION",constellation:'orion',universe:0,
- desc:"THE HUNTER.\nONE PATROL DRONE.\nLEARN THE BASICS.",
- enemies:[{speed:3,type:'bounce'}],lives:3,target:75,color:'#6cf'},
-{name:"LYRA",constellation:'lyra',universe:0,
- desc:"THE HARP.\nTWO DRONES.\nWATCH YOUR TRAIL!",
- enemies:[{speed:3.5,type:'bounce'},{speed:3.5,type:'bounce'}],lives:3,target:75,color:'#0fa'},
-{name:"CASSIOPEIA",constellation:'cassiopeia',universe:0,
- desc:"THE QUEEN.\nA HUNTER LOCKS ON!",
- enemies:[{speed:3,type:'bounce'},{speed:2.5,type:'chase'}],lives:3,target:75,color:'#a8f'},
-{name:"CYGNUS",constellation:'cygnus',universe:0,boss:true,
- desc:"THE SWAN.\n⚠ BOSS: CYGNUS GUARDIAN\nCAPTURE IT IN A ZONE\nTHEN SHOOT TO FINISH!",
- enemies:[{speed:3,type:'bounce'},{speed:2.5,type:'bounce'}],
- bossEnemy:{speed:2,type:'boss',hp:6,name:'CYGNUS GUARDIAN'},
- lives:3,target:75,color:'#0ff'},
+const CONSTELLATION_NAMES={
+    cassiopeia:'THE QUEEN',lyra:'THE HARP',cygnus:'THE SWAN',
+    aquila:'THE EAGLE',perseus:'THE HERO',phoenix:'THE FIREBIRD',
+    leo:'THE LION',sagittarius:'THE ARCHER',orion:'THE HUNTER',
+    gemini:'THE TWINS',scorpius:'THE SCORPION',draco:'THE DRAGON'
+};
 
-// === UNIVERSE 2: MILKY WAY (shooting + new enemies) ===
-{name:"SCORPIUS",constellation:'scorpius',universe:1,
- desc:"THE SCORPION.\n🔫 WEAPONS ONLINE!\nTRACER FOLLOWS YOUR PATH!",
- enemies:[{speed:4,type:'bounce'},{speed:3.5,type:'bounce'},{speed:2.5,type:'tracer'}],lives:3,target:75,color:'#f44'},
-{name:"LEO",constellation:'leo',universe:1,
- desc:"THE LION.\nSHIELDED ENEMIES!\nSHOOT THEM TWICE.",
- enemies:[{speed:4,type:'bounce'},{speed:3,type:'chase'},{speed:3,type:'shield'}],lives:4,target:78,color:'#fa0'},
-{name:"GEMINI",constellation:'gemini',universe:1,
- desc:"THE TWINS.\nSPLITTERS DIVIDE\nWHEN SHOT!",
- enemies:[{speed:4.5,type:'bounce'},{speed:3.5,type:'chase'},{speed:3,type:'split'}],lives:4,target:78,color:'#ff0'},
-{name:"DRACO",constellation:'draco',universe:1,boss:true,
- desc:"THE DRAGON.\n⚠ BOSS: DRACO WYRM\nORBITERS PATROL THE EDGES!\nTRAP & DESTROY THE WYRM!",
- enemies:[{speed:4,type:'bounce'},{speed:3.5,type:'orbit'}],
- bossEnemy:{speed:2.5,type:'boss',hp:10,name:'DRACO WYRM'},
- lives:4,target:80,color:'#8f0'},
+const CONSTELLATION_COLORS={
+    cassiopeia:'#a8f',lyra:'#0fa',cygnus:'#0ff',
+    aquila:'#4af',perseus:'#f8a',phoenix:'#fa0',
+    leo:'#ff0',sagittarius:'#f4a',orion:'#6cf',
+    gemini:'#8ff',scorpius:'#f44',draco:'#8f0'
+};
 
-// === UNIVERSE 3: NEBULA PRIME (all mechanics) ===
-{name:"PERSEUS",constellation:'perseus',universe:2,
- desc:"THE HERO.\nPHASE SHIFTERS!\nTHEY TELEPORT AROUND.",
- enemies:[{speed:5,type:'bounce'},{speed:4,type:'chase'},{speed:3,type:'phase'},{speed:3,type:'tracer'}],lives:4,target:78,color:'#f8a'},
-{name:"AQUILA",constellation:'aquila',universe:2,
- desc:"THE EAGLE.\nFAST SWARM!\nCLAIM 80%.",
- enemies:[{speed:5.5,type:'bounce'},{speed:5,type:'bounce'},{speed:4.5,type:'bounce'},{speed:3.5,type:'chase'},{speed:3,type:'shield'}],lives:4,target:80,color:'#4af'},
-{name:"SAGITTARIUS",constellation:'sagittarius',universe:2,
- desc:"THE ARCHER.\nSPLIT SWARM!\nSHOOT TO SURVIVE.",
- enemies:[{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:3.5,type:'split'},{speed:3.5,type:'split'},{speed:3,type:'phase'}],lives:5,target:80,color:'#f4a'},
-{name:"PHOENIX",constellation:'phoenix',universe:2,boss:true,
- desc:"THE FIREBIRD.\n⚠ FINAL BOSS: PHOENIX LORD\nTHE ULTIMATE CHALLENGE!\nCAPTURE · SHOOT · SURVIVE!",
- enemies:[{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:4,type:'phase'},{speed:3.5,type:'orbit'}],
- bossEnemy:{speed:3,type:'boss',hp:15,name:'PHOENIX LORD'},
- lives:5,target:85,color:'#ff0'},
+// Enemy pools per universe (unlocked progressively within each universe)
+const ENEMY_POOLS=[
+    // Universe 0: only bounce + chase
+    [{type:'bounce'},{type:'chase'}],
+    // Universe 1: + tracer, shield, split
+    [{type:'bounce'},{type:'chase'},{type:'tracer'},{type:'shield'},{type:'split'}],
+    // Universe 2: + phase, orbit + everything
+    [{type:'bounce'},{type:'chase'},{type:'tracer'},{type:'shield'},{type:'split'},{type:'phase'},{type:'orbit'}],
 ];
+
+// Boss definitions per universe
+const BOSS_DEFS=[
+    {name:'ANDROMEDA GUARDIAN',type:'boss',hp:8,speed:2,desc:'⚠ BOSS: ANDROMEDA GUARDIAN\nCAPTURE IT IN A ZONE!'},
+    {name:'MILKY WAY WYRM',type:'boss',hp:12,speed:2.5,desc:'⚠ BOSS: MILKY WAY WYRM\nIT SHOOTS BACK!\nDODGE AND CAPTURE!'},
+    {name:'NEBULA LORD',type:'boss',hp:18,speed:3,desc:'⚠ BOSS: NEBULA LORD\nPHASE-SHIFTING BOSS!\nTHE ULTIMATE CHALLENGE!'},
+];
+
+// Generate all levels programmatically
+const LEVELS=[];
+let _lvIdx=0;
+
+for(let ui=0;ui<UNIVERSE_CONSTELLATIONS.length;ui++){
+    const cstKeys=UNIVERSE_CONSTELLATIONS[ui];
+    const uniStart=_lvIdx;
+    
+    for(const cstKey of cstKeys){
+        const cst=CONSTELLATIONS[cstKey];
+        const starCount=cst.stars.length;
+        const cstStart=_lvIdx;
+        
+        for(let si=0;si<starCount;si++){
+            // Progressive difficulty within constellation and universe
+            const globalProgress=_lvIdx/75; // 0-1 across entire game
+            const localProgress=si/(starCount-1||1); // 0-1 within constellation
+            const uniProgress=(ui+localProgress*0.3)/3;
+            
+            // Enemy count scales: start with 1, end with 5+
+            const baseEnemies=Math.floor(1+globalProgress*4+localProgress*1.5);
+            const enemyCount=Math.min(6,Math.max(1,baseEnemies));
+            
+            // Speed scales
+            const baseSpeed=2.5+globalProgress*3+localProgress*0.5;
+            
+            // Generate enemy list from pool
+            const pool=ENEMY_POOLS[ui];
+            const enemies=[];
+            for(let ei=0;ei<enemyCount;ei++){
+                // First enemies are always bouncers, later ones use pool
+                const poolIdx=Math.min(Math.floor(ei*pool.length/Math.max(enemyCount,2)),pool.length-1);
+                const etype=ei<1?'bounce':pool[Math.min(poolIdx,Math.floor(localProgress*(pool.length-1))+1)||0].type;
+                enemies.push({
+                    speed:Math.round((baseSpeed-ei*0.3)*10)/10,
+                    type:etype
+                });
+            }
+            
+            // Target percentage scales
+            const target=Math.min(90,Math.max(70,Math.round(70+globalProgress*15+localProgress*5)));
+            
+            // Lives
+            const baseLives=ui===0?3:ui===1?3:4;
+            const lives=baseLives+(localProgress>0.7?1:0);
+            
+            LEVELS.push({
+                name:CONSTELLATION_NAMES[cstKey]||cstKey.toUpperCase(),
+                constellation:cstKey,
+                universe:ui,
+                starIdx:si,
+                starTotal:starCount,
+                cstStartLv:cstStart,
+                desc:(si===0?'ENTERING '+cstKey.toUpperCase()+'!\n':'STAR '+(si+1)+' OF '+starCount+'\n')+
+                     (ui===0&&si===0?'LEARN THE BASICS.':'CLAIM '+target+'% TERRITORY.'),
+                enemies,
+                lives,
+                target,
+                color:CONSTELLATION_COLORS[cstKey]||'#fff',
+                galaxy:ui,
+                coins:Math.round(50+globalProgress*150+localProgress*50), // coins awarded
+            });
+            
+            UNIVERSES[ui].constellations.push(_lvIdx);
+            _lvIdx++;
+        }
+    }
+    
+    // Boss level at end of universe
+    const boss=BOSS_DEFS[ui];
+    const bossProgress=(ui+1)/3;
+    const bossEnemies=[{speed:3+ui,type:'bounce'}];
+    if(ui>=1)bossEnemies.push({speed:2.5+ui,type:'chase'});
+    if(ui>=2)bossEnemies.push({speed:3,type:'phase'},{speed:2.5,type:'orbit'});
+    
+    LEVELS.push({
+        name:boss.name,
+        constellation:UNIVERSE_CONSTELLATIONS[ui][UNIVERSE_CONSTELLATIONS[ui].length-1], // use last constellation bg
+        universe:ui,
+        starIdx:-1,starTotal:0,cstStartLv:_lvIdx,
+        desc:boss.desc,
+        enemies:bossEnemies,
+        bossEnemy:{speed:boss.speed,type:'boss',hp:boss.hp,name:boss.name},
+        boss:true,
+        lives:ui===0?3:ui===1?4:5,
+        target:ui===0?75:ui===1?80:85,
+        color:'#f44',
+        galaxy:ui,
+        coins:Math.round(200+ui*200),
+    });
+    UNIVERSES[ui].constellations.push(_lvIdx);
+    _lvIdx++;
+}
+
+console.log('Generated '+LEVELS.length+' levels across '+UNIVERSES.length+' universes');
 
 // ===== SHIPS =====
 const SHIPS=[
 {id:'viper',name:'VIPER',desc:'BALANCED FIGHTER.\nGOOD ALL-ROUNDER.',
- starsNeeded:0,
+ starsNeeded:0,cost:0,
  speed:8,trailSpeed:6,fireRate:0.35,bulletDmg:1,lives:0,
  color1:'#28a',color2:'#6cf',trailCol:'#0fa',bulletCol:'#ff0',
  special:null,specialDesc:'NO SPECIAL ABILITY'},
 {id:'phantom',name:'PHANTOM',desc:'STEALTH CUTTER.\nFASTER TRAIL SPEED\nBUT SLOWER FIRE.',
- starsNeeded:4,
+ starsNeeded:4,cost:500,
  speed:8,trailSpeed:9,fireRate:0.6,bulletDmg:1,lives:0,
  color1:'#508',color2:'#c8f',trailCol:'#f0f',bulletCol:'#c8f',
  special:'fastTrail',specialDesc:'FAST TRAIL CUTTING'},
 {id:'titan',name:'TITAN',desc:'HEAVY TANK.\nEXTRA LIFE & DAMAGE\nBUT SLOWER MOVEMENT.',
- starsNeeded:10,
+ starsNeeded:10,cost:1500,
  speed:6,trailSpeed:5,fireRate:0.35,bulletDmg:2,lives:1,
  color1:'#a50',color2:'#fa0',trailCol:'#fa0',bulletCol:'#f80',
  special:'heavyShot',specialDesc:'+1 LIFE · DOUBLE DAMAGE'},
 {id:'pulse',name:'PULSE',desc:'RAPID FIRE.\nFAST SHOOTING\nBUT WEAKER BULLETS.',
- starsNeeded:18,
+ starsNeeded:18,cost:3000,
  speed:8,trailSpeed:6,fireRate:0.15,bulletDmg:1,lives:0,
  color1:'#0a5',color2:'#0ff',trailCol:'#0ff',bulletCol:'#0ff',
  special:'rapidFire',specialDesc:'RAPID FIRE CANNON'},
 {id:'nova',name:'NOVA',desc:'THE ULTIMATE.\nFAST · STRONG · FRAGILE.\nONE LESS LIFE.',
- starsNeeded:28,
+ starsNeeded:28,cost:5000,
  speed:10,trailSpeed:8,fireRate:0.25,bulletDmg:2,lives:-1,
  color1:'#a00',color2:'#f44',trailCol:'#f42',bulletCol:'#f44',
  special:'nova',specialDesc:'FAST + STRONG · -1 LIFE'},
 ];
-let curShip=0; // index into SHIPS
+let curShip=0;
+
+// ===== SHOP ITEMS =====
+const SHOP_SKINS=[
+    {id:'default',name:'DEFAULT',cost:0,color1:null,color2:null}, // uses ship default
+    {id:'ice',name:'ICE',cost:200,color1:'#048',color2:'#4df'},
+    {id:'fire',name:'FIRE',cost:200,color1:'#a20',color2:'#f84'},
+    {id:'toxic',name:'TOXIC',cost:300,color1:'#042',color2:'#4f4'},
+    {id:'gold',name:'GOLD',cost:500,color1:'#a80',color2:'#ff4'},
+    {id:'neon',name:'NEON',cost:500,color1:'#408',color2:'#f4f'},
+    {id:'stealth',name:'STEALTH',cost:800,color1:'#111',color2:'#334'},
+    {id:'plasma',name:'PLASMA',cost:1000,color1:'#206',color2:'#c4f'},
+];
+
+const SHOP_TRAILS=[
+    {id:'default',name:'DEFAULT',cost:0,color:null},
+    {id:'red',name:'RED TRAIL',cost:150,color:'#f44'},
+    {id:'blue',name:'BLUE TRAIL',cost:150,color:'#44f'},
+    {id:'purple',name:'PURPLE TRAIL',cost:200,color:'#c4f'},
+    {id:'gold',name:'GOLD TRAIL',cost:300,color:'#ff0'},
+    {id:'rainbow',name:'RAINBOW',cost:1000,color:'rainbow'},
+];
+
+const SHOP_UPGRADES=[
+    {id:'speed1',name:'+5% SPEED',cost:300,stat:'speed',value:0.05,max:3},
+    {id:'trail1',name:'+5% TRAIL SPEED',cost:300,stat:'trailSpeed',value:0.05,max:3},
+    {id:'fire1',name:'+10% FIRE RATE',cost:400,stat:'fireRate',value:0.1,max:3},
+    {id:'magnet',name:'POWER-UP MAGNET',cost:800,stat:'magnet',value:1,max:1},
+    {id:'armor',name:'+1 STARTING LIFE',cost:1500,stat:'lives',value:1,max:2},
+];
 
 // ===== SAVE =====
-let save={hi:0,unlocked:1,stars:[],scores:[],ship:0};
-try{const d=JSON.parse(localStorage.getItem('zd5'));if(d){save=d;curShip=save.ship||0;}}catch(e){}
-function writeS(){save.ship=curShip;try{localStorage.setItem('zd5',JSON.stringify(save));}catch(e){}}
+// Bump to zd6 for new level structure
+let save={hi:0,unlocked:1,stars:[],scores:[],ship:0,coins:0,
+           purchased:{ships:['viper'],skins:['default'],trails:['default'],upgrades:{}},
+           activeSkin:'default',activeTrail:'default',
+           levelScores:{}}; // per-level high scores
+try{const d=JSON.parse(localStorage.getItem('zd6'));if(d){
+    save={...save,...d};curShip=save.ship||0;
+    // Ensure new fields exist
+    if(!save.coins)save.coins=0;
+    if(!save.purchased)save.purchased={ships:['viper'],skins:['default'],trails:['default'],upgrades:{}};
+    if(!save.activeSkin)save.activeSkin='default';
+    if(!save.activeTrail)save.activeTrail='default';
+    if(!save.levelScores)save.levelScores={};
+}}catch(e){}
+function writeS(){save.ship=curShip;try{localStorage.setItem('zd6',JSON.stringify(save));}catch(e){}}
 function totalStars(){return(save.stars||[]).reduce((a,b)=>a+(b||0),0);}
 
 // ===== STARFIELD =====
@@ -412,8 +531,9 @@ function getMusicKey(scene){
     if(scene==='title')return audioReady('theme')?'theme':(audioReady('menu')?'menu':null);
     if(scene==='boss')return audioReady('boss')?'boss':null;
     if(scene==='gameplay'){
-        if(curLv<4)return audioReady('galaxy1')?'galaxy1':null;
-        if(curLv<8)return audioReady('galaxy2')?'galaxy2':null;
+        const uni=LEVELS[curLv]?.universe??0;
+        if(uni===0)return audioReady('galaxy1')?'galaxy1':null;
+        if(uni===1)return audioReady('galaxy2')?'galaxy2':null;
         return audioReady('galaxy3')?'galaxy3':null;
     }
     if(scene==='pause')return audioReady('pause')?'pause':null;
@@ -483,7 +603,7 @@ function stopSynth(){
 function startSynth(scene){
     const a=ac();stopSynth();synthActive=true;
     const cfg=scene==='menu'?MUSIC_CONFIGS.menu:scene==='boss'?MUSIC_CONFIGS.boss
-        :scene==='gameplay'?(curLv<4?MUSIC_CONFIGS.inner:curLv<8?MUSIC_CONFIGS.deep:MUSIC_CONFIGS.outer)
+        :scene==='gameplay'?((LEVELS[curLv]?.universe??0)===0?MUSIC_CONFIGS.inner:(LEVELS[curLv]?.universe??0)===1?MUSIC_CONFIGS.deep:MUSIC_CONFIGS.outer)
         :MUSIC_CONFIGS.menu;
     if(!musicGain){musicGain=a.createGain();musicGain.connect(a.destination);}
     musicGain.gain.setValueAtTime(0.6,a.currentTime);
@@ -857,6 +977,11 @@ function checkWin(){
     score+=pct*20+lives*500+effBonus;
     if(!save.stars[curLv]||save.stars[curLv]<st)save.stars[curLv]=st;
     if(!save.scores[curLv]||save.scores[curLv]<score)save.scores[curLv]=score;
+    // Per-level high score
+    if(!save.levelScores[curLv]||save.levelScores[curLv]<score)save.levelScores[curLv]=score;
+    // Coins
+    const lvCoins=(LEVELS[curLv].coins||50)*st;
+    save.coins=(save.coins||0)+lvCoins;
     if(curLv+1>=save.unlocked)save.unlocked=Math.min(curLv+2,LEVELS.length);
     if(score>save.hi)save.hi=score;writeS();sfxWarp();playOneShot('victory');
     state='won';
@@ -864,6 +989,7 @@ function checkWin(){
     else{
         let info='TERRITORY: '+pct+'%<br>CUTS: '+cutsCt+' — RANK <span style="color:'+effCol+'">'+effRank+'</span> (+'+effBonus+')';
         if(captureKills>0)info+='<br>CAPTURED: '+captureKills+' ENEMIES (+'+captureKills*500+')';
+        info+='<br><span style="color:#ff0">+'+lvCoins+' COINS</span> (TOTAL: '+save.coins+')';
         document.getElementById('w-st').textContent='★'.repeat(st)+'☆'.repeat(3-st);
         document.getElementById('w-sc').textContent='SCORE: '+score;
         document.getElementById('w-info').innerHTML=info;
@@ -1420,175 +1546,278 @@ function getConstellationLayout(cstKey,cx,cy,size){
     return{stars,lines:cst.lines,raw:cst};
 }
 
+// Helper: get all levels belonging to a constellation key in a given universe
+function getConstellationLevels(cstKey,uni){
+    return LEVELS.map((lv,i)=>({lv,i})).filter(({lv})=>lv.constellation===cstKey&&lv.universe===uni&&lv.starIdx>=0);
+}
+
+// Get unique constellation keys for a universe (excluding boss)
+function getUniverseConstellations(ui){
+    const seen=new Set();const result=[];
+    for(const li of UNIVERSES[ui].constellations){
+        const lv=LEVELS[li];
+        if(lv.starIdx>=0&&!seen.has(lv.constellation)){seen.add(lv.constellation);result.push({key:lv.constellation,firstLv:li});}
+    }
+    return result;
+}
+
 // ---- GALAXY VIEW: shows all constellations as small shapes ----
 function renderGalaxyView(time){
     const fs=Math.max(10,Math.min(14,W*0.03));
     const g=UNIVERSES[mapGalaxy];
+    const cstList=getUniverseConstellations(mapGalaxy);
+    // Include boss as a special node
+    const bossLi=UNIVERSES[mapGalaxy].constellations[UNIVERSES[mapGalaxy].constellations.length-1];
+    const hasBoss=LEVELS[bossLi]?.boss;
 
     // Title
     c.fillStyle=g.color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
     c.fillText(g.name,W/2,12);
     c.fillStyle='#667';c.font=(fs*0.4)+'px "Press Start 2P"';
     c.fillText('GALAXY '+(mapGalaxy+1)+' OF '+UNIVERSES.length+'  ·  TAP A CONSTELLATION',W/2,14+fs+4);
+    c.fillStyle='#ff0';c.font=(fs*0.35)+'px "Press Start 2P"';
+    c.fillText('🪙 '+save.coins,W/2,14+fs+4+fs*0.4+4);
 
-    const consts=g.constellations;
-    const count=consts.length;
-    // Layout constellations in a grid/spread
+    const count=cstList.length+(hasBoss?1:0);
     const cols=Math.min(count,2),rows=Math.ceil(count/cols);
-    const cellW=W/(cols+0.5),cellH=(H-100)/(rows+0.5);
-    const cstSize=Math.min(cellW,cellH)*0.55;
-    const startY=50+fs;
+    const cellW=W/(cols+0.5),cellH=(H-110)/(rows+0.5);
+    const cstSize=Math.min(cellW,cellH)*0.5;
+    const startY=55+fs;
 
     const nodes=[];
-    for(let j=0;j<count;j++){
+    for(let j=0;j<cstList.length;j++){
         const row=Math.floor(j/cols),col=j%cols;
         const cx=cellW*(col+0.75),cy=startY+cellH*(row+0.5);
-        const li=consts[j],lv=LEVELS[li];
-        const ul=li<save.unlocked;
+        const cstKey=cstList[j].key;
+        const cstLevels=getConstellationLevels(cstKey,mapGalaxy);
+        const firstLi=cstLevels[0]?.i??0;
+        const ul=firstLi<save.unlocked;
         const sel=j===mapSelConstellation;
-        const layout=getConstellationLayout(lv.constellation,cx,cy,cstSize);
+        const color=CONSTELLATION_COLORS[cstKey];
+        const layout=getConstellationLayout(cstKey,cx,cy,cstSize);
 
-        // Draw constellation lines
-        c.globalAlpha=ul?(sel?0.6:0.35):0.12;
-        c.strokeStyle=ul?lv.color:'#445';c.lineWidth=sel?2.5:1.5;
+        // Constellation lines
+        c.globalAlpha=ul?(sel?0.6:0.3):0.1;
+        c.strokeStyle=ul?color:'#445';c.lineWidth=sel?2.5:1.5;
         for(const[a,b]of layout.lines){
             c.beginPath();c.moveTo(layout.stars[a].x,layout.stars[a].y);
             c.lineTo(layout.stars[b].x,layout.stars[b].y);c.stroke();
         }
-
-        // Draw stars
-        for(const s of layout.stars){
-            c.beginPath();c.arc(s.x,s.y,sel?4:3,0,Math.PI*2);
-            c.fillStyle=ul?'#fff':'#556';c.fill();
+        // Stars - show completed vs not
+        for(let si=0;si<layout.stars.length;si++){
+            const lvI=cstLevels[si]?.i;
+            const completed=lvI!==undefined&&save.stars[lvI]>0;
+            const unlocked=lvI!==undefined&&lvI<save.unlocked;
+            c.beginPath();c.arc(layout.stars[si].x,layout.stars[si].y,sel?5:3.5,0,Math.PI*2);
+            c.fillStyle=completed?'#ff0':unlocked?'#fff':'#556';c.fill();
         }
         c.globalAlpha=1;
 
-        // Constellation name
-        c.fillStyle=ul?(sel?'#fff':lv.color):'#445';
-        c.font=Math.max(7,fs*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-        c.fillText(lv.name,cx,cy+cstSize*0.55+8);
+        // Name
+        c.fillStyle=ul?(sel?'#fff':color):'#445';
+        c.font=Math.max(7,fs*0.45)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+        c.fillText(cstKey.toUpperCase(),cx,cy+cstSize*0.55+6);
+        // Progress
+        const done=cstLevels.filter(({i})=>save.stars[i]>0).length;
+        c.fillStyle='#889';c.font=Math.max(6,fs*0.3)+'px "Press Start 2P"';
+        c.fillText(done+'/'+cstLevels.length+' STARS',cx,cy+cstSize*0.55+6+fs*0.45+4);
 
-        // Level number + stars earned
-        c.fillStyle=ul?'#889':'#334';c.font=Math.max(6,fs*0.35)+'px "Press Start 2P"';
-        c.fillText('LV '+(li+1),cx,cy+cstSize*0.55+8+fs*0.5+4);
-        if(save.stars[li]){
-            c.fillStyle='#ff0';c.fillText('★'.repeat(save.stars[li]),cx,cy+cstSize*0.55+8+fs*0.5+4+fs*0.35+3);
-        }
-
-        // Boss indicator
-        if(lv.boss){c.fillStyle='#f44';c.font=Math.max(6,fs*0.3)+'px "Press Start 2P"';c.fillText('⚠ BOSS',cx,cy-cstSize*0.55-12);}
-
-        // Selected highlight
         if(sel&&ul){
             const p=0.4+0.6*Math.sin(time*0.004);
             c.strokeStyle=`rgba(0,255,200,${p})`;c.lineWidth=2;
-            c.strokeRect(cx-cstSize*0.7,cy-cstSize*0.6,cstSize*1.4,cstSize*1.2+30);
+            c.strokeRect(cx-cstSize*0.7,cy-cstSize*0.6,cstSize*1.4,cstSize*1.2+35);
         }
+        if(!ul){c.fillStyle='#556';c.font=Math.max(12,cstSize*0.2)+'px "Press Start 2P"';c.textBaseline='middle';c.fillText('🔒',cx,cy);}
 
-        // Lock overlay
-        if(!ul){
-            c.fillStyle='#556';c.font=Math.max(14,cstSize*0.25)+'px "Press Start 2P"';c.textBaseline='middle';
-            c.fillText('🔒',cx,cy);
-        }
+        nodes.push({x:cx,y:cy,w:cstSize*1.4,h:cstSize*1.2+35,j,ul,cstKey,firstLi});
+    }
 
-        nodes.push({x:cx,y:cy,w:cstSize*1.4,h:cstSize*1.2+30,li,j,ul});
+    // Boss node
+    if(hasBoss){
+        const j=cstList.length;
+        const row=Math.floor(j/cols),col=j%cols;
+        const cx=cellW*(col+0.75),cy=startY+cellH*(row+0.5);
+        const ul=bossLi<save.unlocked;
+        const sel=j===mapSelConstellation;
+        const nodeR=cstSize*0.3;
+        const p=0.5+0.5*Math.sin(time*0.005);
+        c.beginPath();c.arc(cx,cy,nodeR,0,Math.PI*2);
+        c.fillStyle=ul?`rgba(255,0,0,${0.3+0.2*p})`:'#1a1a2e';c.fill();
+        c.strokeStyle=ul?(sel?'#ff0':'#f44'):'#445';c.lineWidth=2;c.stroke();
+        c.fillStyle=ul?'#fff':'#556';c.font=Math.max(8,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText(ul?'⚠ BOSS':'🔒',cx,cy);
+        c.fillStyle='#f44';c.font=Math.max(6,fs*0.35)+'px "Press Start 2P"';c.textBaseline='top';
+        c.fillText(LEVELS[bossLi].name,cx,cy+nodeR+6);
+        if(sel&&ul){c.strokeStyle=`rgba(255,255,0,${0.4+0.4*p})`;c.lineWidth=2;c.strokeRect(cx-nodeR-10,cy-nodeR-10,nodeR*2+20,nodeR*2+30);}
+        nodes.push({x:cx,y:cy,w:nodeR*2+20,h:nodeR*2+30,j,ul,cstKey:'_boss',firstLi:bossLi,isBoss:true});
     }
     renderMap._galaxyNodes=nodes;
 }
 
-// ---- CONSTELLATION VIEW: zoomed in, shows level on each star ----
+// ---- CONSTELLATION VIEW: each star = a level node ----
+let mapSelStar=0; // which star/level is selected within constellation
+
 function renderConstellationView(time){
-    const li=UNIVERSES[mapGalaxy].constellations[mapSelConstellation];
-    const lv=LEVELS[li];
-    const cst=CONSTELLATIONS[lv.constellation];if(!cst)return;
+    const cstList=getUniverseConstellations(mapGalaxy);
+    if(mapSelConstellation>=cstList.length){
+        // Boss direct play
+        const bossLi=UNIVERSES[mapGalaxy].constellations[UNIVERSES[mapGalaxy].constellations.length-1];
+        renderBossView(time,bossLi);return;
+    }
+    const cstKey=cstList[mapSelConstellation].key;
+    const cstLevels=getConstellationLevels(cstKey,mapGalaxy);
+    const color=CONSTELLATION_COLORS[cstKey];
     const fs=Math.max(10,Math.min(14,W*0.03));
 
     // Title
-    c.fillStyle=lv.color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText('✦ '+lv.name+' ✦',W/2,12);
+    c.fillStyle=color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText('✦ '+cstKey.toUpperCase()+' ✦',W/2,12);
     c.fillStyle='#889';c.font=(fs*0.4)+'px "Press Start 2P"';
-    c.fillText(UNIVERSES[mapGalaxy].name+' · LEVEL '+(li+1),W/2,14+fs+4);
+    c.fillText(CONSTELLATION_NAMES[cstKey]+' · '+cstLevels.length+' STARS',W/2,14+fs+4);
+    c.fillStyle='#ff0';c.font=(fs*0.35)+'px "Press Start 2P"';
+    c.fillText('🪙 '+save.coins,W/2,14+fs+4+fs*0.4+4);
 
-    // Draw constellation large
-    const margin=80,topOff=50+fs;
+    // Draw constellation large with each star as a level node
+    const topOff=55+fs*2;
+    const margin=90;
     const availH=H-topOff-margin;
-    const availW=W-60;
+    const availW=W-40;
     const cstSize=Math.min(availW,availH)*0.85;
-    const layout=getConstellationLayout(lv.constellation,W/2,topOff+availH*0.45,cstSize);
+    const layout=getConstellationLayout(cstKey,W/2,topOff+availH*0.45,cstSize);
+    const nodeR=Math.max(12,Math.min(20,W*0.035));
 
     // Lines
-    c.globalAlpha=0.4;c.strokeStyle=lv.color;c.lineWidth=2;
+    c.globalAlpha=0.3;c.strokeStyle=color;c.lineWidth=2;
     for(const[a,b]of layout.lines){
         c.beginPath();c.moveTo(layout.stars[a].x,layout.stars[a].y);
         c.lineTo(layout.stars[b].x,layout.stars[b].y);c.stroke();
     }
     c.globalAlpha=1;
 
-    // The main level node is on the brightest/center star
-    // For now, show level info centered on the constellation
-    const nodeR=Math.max(20,Math.min(32,W*0.06));
-    // Draw all stars as decorative
-    for(let si=0;si<layout.stars.length;si++){
+    // Star/level nodes
+    const starNodes=[];
+    for(let si=0;si<layout.stars.length&&si<cstLevels.length;si++){
         const s=layout.stars[si];
-        c.beginPath();c.arc(s.x,s.y,si===0?nodeR*0.5:4,0,Math.PI*2);
-        c.fillStyle=si===0?lv.color:'rgba(255,255,255,0.6)';c.fill();
-        if(si===0){
-            c.strokeStyle='rgba(255,255,255,0.2)';c.lineWidth=1;c.stroke();
+        const {lv,i:li}=cstLevels[si];
+        const ul=li<save.unlocked;
+        const sel=si===mapSelStar;
+        const completed=save.stars[li]>0;
+        const p=0.5+0.5*Math.sin(time*0.003+si);
+
+        if(ul){
+            // Glow
+            c.beginPath();c.arc(s.x,s.y,nodeR+8,0,Math.PI*2);
+            c.fillStyle=sel?`rgba(0,255,200,${0.1+0.08*p})`:`rgba(0,150,255,${0.03+0.02*p})`;c.fill();
+            // Planet
+            const pg=c.createRadialGradient(s.x-nodeR*0.2,s.y-nodeR*0.2,0,s.x,s.y,nodeR);
+            pg.addColorStop(0,'rgba(255,255,255,0.3)');pg.addColorStop(0.4,color);pg.addColorStop(1,'rgba(0,0,0,0.4)');
+            c.beginPath();c.arc(s.x,s.y,nodeR,0,Math.PI*2);c.fillStyle=pg;c.fill();
+            c.strokeStyle=completed?'#ff0':'rgba(255,255,255,0.15)';c.lineWidth=completed?2:1;c.stroke();
+            // Star number
+            c.fillStyle='#000';c.font=Math.max(7,nodeR*0.45)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText(''+(si+1),s.x,s.y);
+            // Stars earned
+            if(save.stars[li]){c.fillStyle='#ff0';c.font=Math.max(5,nodeR*0.25)+'px "Press Start 2P"';c.textBaseline='top';c.fillText('★'.repeat(save.stars[li]),s.x,s.y+nodeR+3);}
+            // Selected
+            if(sel){
+                c.beginPath();c.arc(s.x,s.y,nodeR+5,0,Math.PI*2);
+                c.strokeStyle=`rgba(0,255,200,${0.5+0.5*p})`;c.lineWidth=2;c.stroke();
+                // High score
+                if(save.levelScores[li]){
+                    c.fillStyle='#889';c.font=Math.max(5,nodeR*0.22)+'px "Press Start 2P"';c.textBaseline='bottom';
+                    c.fillText('HI:'+save.levelScores[li],s.x,s.y-nodeR-8);
+                }
+            }
+        }else{
+            c.beginPath();c.arc(s.x,s.y,nodeR*0.7,0,Math.PI*2);c.fillStyle='#1a1a2e';c.fill();
+            c.strokeStyle='#445';c.lineWidth=1;c.stroke();
+            c.fillStyle='#556';c.font=Math.max(8,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('🔒',s.x,s.y);
+        }
+        starNodes.push({x:s.x,y:s.y,r:nodeR+8,li,si,ul});
+    }
+    renderMap._starNodes=starNodes;
+
+    // === ENEMY INFO PANEL for selected level ===
+    if(mapSelStar<cstLevels.length){
+        const {lv,i:li}=cstLevels[mapSelStar];
+        const panelH=55;
+        const panelY=H-margin+5;
+        c.fillStyle='rgba(0,0,30,0.9)';c.fillRect(8,panelY-panelH,W-16,panelH);
+        c.strokeStyle=color;c.lineWidth=1;c.strokeRect(8,panelY-panelH,W-16,panelH);
+
+        const pfs=Math.max(6,fs*0.32);
+        c.fillStyle='#fff';c.font=pfs+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
+        c.fillText('STAR '+(mapSelStar+1)+'/'+cstLevels.length+'  ·  TARGET:'+lv.target+'%  ·  LIVES:'+lv.lives,16,panelY-panelH+5);
+
+        // Enemy types
+        let ex=16;const ey=panelY-panelH+5+pfs+6;
+        const allEnemies=[...lv.enemies];
+        for(const en of allEnemies){
+            const name=ETYPE_NAMES[en.type]||en.type;
+            const col2=ETYPE_COLORS[en.type]||'#fff';
+            c.beginPath();c.arc(ex+4,ey+1,3,0,Math.PI*2);c.fillStyle=col2;c.fill();
+            c.fillStyle=col2;c.font=pfs+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='middle';
+            c.fillText(name,ex+10,ey+1);
+            ex+=10+name.length*pfs*0.65+6;
+        }
+
+        // Coins reward
+        c.fillStyle='#ff0';c.font=pfs+'px "Press Start 2P"';c.textAlign='right';c.textBaseline='top';
+        c.fillText('🪙 '+(lv.coins||50),W-16,panelY-panelH+5);
+
+        // TAP TO PLAY prompt
+        if(li<save.unlocked){
+            const tp=0.5+0.5*Math.sin(time*0.004);
+            c.fillStyle=`rgba(0,255,200,${tp})`;c.font=Math.max(6,pfs)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+            c.fillText('TAP STAR TO PLAY',W/2,panelY-panelH-4);
         }
     }
+}
 
-    // Level play button centered
-    const btnX=W/2,btnY=topOff+availH*0.45;
-    const p=0.5+0.5*Math.sin(time*0.004);
-    // Big planet node
-    const pg=c.createRadialGradient(btnX-nodeR*0.25,btnY-nodeR*0.25,0,btnX,btnY,nodeR);
-    pg.addColorStop(0,'rgba(255,255,255,0.3)');pg.addColorStop(0.4,lv.color);pg.addColorStop(1,'rgba(0,0,0,0.4)');
+function renderBossView(time,bossLi){
+    const lv=LEVELS[bossLi];
+    const fs=Math.max(10,Math.min(14,W*0.03));
+    c.fillStyle='#f44';c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText('⚠ '+lv.name+' ⚠',W/2,12);
+    c.fillStyle='#889';c.font=(fs*0.4)+'px "Press Start 2P"';
+    c.fillText(UNIVERSES[mapGalaxy].name+' BOSS',W/2,14+fs+4);
+
+    const nodeR=Math.max(30,W*0.08);
+    const btnX=W/2,btnY=H*0.4;
+    const p=0.5+0.5*Math.sin(time*0.005);
+    // Boss orb
+    c.beginPath();c.arc(btnX,btnY,nodeR+10,0,Math.PI*2);
+    c.fillStyle=`rgba(255,0,0,${0.1+0.08*p})`;c.fill();
+    const pg=c.createRadialGradient(btnX,btnY-nodeR*0.2,0,btnX,btnY,nodeR);
+    pg.addColorStop(0,'#f88');pg.addColorStop(0.5,'#a00');pg.addColorStop(1,'#400');
     c.beginPath();c.arc(btnX,btnY,nodeR,0,Math.PI*2);c.fillStyle=pg;c.fill();
-    if(li<save.unlocked){
-        c.strokeStyle=`rgba(0,255,200,${0.4+0.4*p})`;c.lineWidth=3;c.stroke();
-        c.fillStyle='#000';c.font=Math.max(10,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-        c.fillText('▶',btnX,btnY);
-        c.fillStyle=`rgba(0,255,200,${0.5+0.5*p})`;c.font=Math.max(7,nodeR*0.3)+'px "Press Start 2P"';c.textBaseline='top';
-        c.fillText('TAP TO PLAY',btnX,btnY+nodeR+6);
+    c.strokeStyle=`rgba(255,255,0,${0.4+0.4*p})`;c.lineWidth=3;c.stroke();
+
+    if(bossLi<save.unlocked){
+        c.fillStyle='#fff';c.font=Math.max(10,nodeR*0.3)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText('FIGHT',btnX,btnY);
     }else{
-        c.strokeStyle='#445';c.lineWidth=2;c.stroke();
-        c.fillStyle='#556';c.font=Math.max(12,nodeR*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillStyle='#556';c.font=Math.max(14,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
         c.fillText('🔒',btnX,btnY);
     }
-    renderMap._playBtn={x:btnX,y:btnY,r:nodeR+10,li};
+    renderMap._playBtn={x:btnX,y:btnY,r:nodeR+12,li:bossLi};
 
-    // Stars earned
-    if(save.stars[li]){
-        c.fillStyle='#ff0';c.font=Math.max(8,nodeR*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-        c.fillText('★'.repeat(save.stars[li]),btnX,btnY+nodeR+22);
-    }
-
-    // === ENEMY INFO PANEL ===
-    const panelY=H-margin-10;
-    const panelH=60;
-    c.fillStyle='rgba(0,0,30,0.85)';
-    c.fillRect(10,panelY-panelH,W-20,panelH);
-    c.strokeStyle=lv.color;c.lineWidth=1;c.strokeRect(10,panelY-panelH,W-20,panelH);
-
-    c.fillStyle='#aab';c.font=Math.max(6,fs*0.35)+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
-    c.fillText('ENEMIES:',18,panelY-panelH+6);
-    c.fillText('TARGET: '+lv.target+'%  ·  LIVES: '+lv.lives,18,panelY-panelH+6+fs*0.35+14);
-
-    // Draw enemy type icons
-    const allEnemies=[...lv.enemies];
-    if(lv.bossEnemy)allEnemies.push(lv.bossEnemy);
-    let ex=18;
-    const ey=panelY-panelH+6+fs*0.35+4;
-    const eSize=Math.max(7,fs*0.4);
-    for(const en of allEnemies){
-        const name=ETYPE_NAMES[en.type]||en.type.toUpperCase();
-        const col=ETYPE_COLORS[en.type]||'#fff';
-        // Enemy dot
-        c.beginPath();c.arc(ex+5,ey,4,0,Math.PI*2);c.fillStyle=col;c.fill();
-        // Name
-        c.fillStyle=col;c.font=eSize+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='middle';
-        c.fillText(name,ex+12,ey);
-        ex+=12+name.length*eSize*0.65+8;
+    // Enemy info
+    const panelH=50;const panelY=H-60;
+    c.fillStyle='rgba(0,0,30,0.9)';c.fillRect(8,panelY-panelH,W-16,panelH);
+    c.strokeStyle='#f44';c.lineWidth=1;c.strokeRect(8,panelY-panelH,W-16,panelH);
+    const pfs=Math.max(6,fs*0.32);
+    c.fillStyle='#fff';c.font=pfs+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
+    c.fillText('HP: '+(lv.bossEnemy?.hp||'?')+'  ·  TARGET:'+lv.target+'%  ·  LIVES:'+lv.lives,16,panelY-panelH+5);
+    let ex=16;const ey=panelY-panelH+5+pfs+6;
+    for(const en of[...lv.enemies,lv.bossEnemy].filter(Boolean)){
+        const name=ETYPE_NAMES[en.type]||en.type;
+        const col2=ETYPE_COLORS[en.type]||'#fff';
+        c.beginPath();c.arc(ex+4,ey+1,3,0,Math.PI*2);c.fillStyle=col2;c.fill();
+        c.fillStyle=col2;c.font=pfs+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='middle';
+        c.fillText(name,ex+10,ey+1);
+        ex+=10+name.length*pfs*0.65+6;
     }
 }
 
@@ -1675,10 +1904,18 @@ function switchGalaxy(dir){
 }
 
 function zoomIntoConstellation(j){
-    const li=UNIVERSES[mapGalaxy].constellations[j];
-    mapSelConstellation=j;mSel=li;
+    mapSelConstellation=j;
+    mapSelStar=0;
     mapMode='constellation';
     mapZoomTarget=1;mapCamTargetX=0;mapCamTargetY=0;
+    // Find first unlocked star in this constellation
+    const cstList=getUniverseConstellations(mapGalaxy);
+    if(j<cstList.length){
+        const cstLevels=getConstellationLevels(cstList[j].key,mapGalaxy);
+        for(let si=cstLevels.length-1;si>=0;si--){
+            if(cstLevels[si].i<save.unlocked){mapSelStar=si;break;}
+        }
+    }
     sfxSel();
 }
 
@@ -1714,12 +1951,23 @@ cv.addEventListener('click',e=>{
     }else{
         // Back button
         const bb=renderMap._backBtn;if(bb&&mx>=bb.x&&mx<=bb.x+bb.w&&my>=bb.y&&my<=bb.y+bb.h){zoomOutToGalaxy();return;}
-        // Play button
+        // Boss view play button
         const pb=renderMap._playBtn;if(pb){
             if((mx-pb.x)**2+(my-pb.y)**2<pb.r**2){
                 if(pb.li<save.unlocked){sfxSel();startLv(pb.li);}
                 else beep(150,0.15,'sawtooth',0.06);
                 return;
+            }
+        }
+        // Star nodes in constellation view
+        const sn=renderMap._starNodes;if(sn){
+            for(const n of sn){
+                if((mx-n.x)**2+(my-n.y)**2<n.r**2){
+                    if(n.si===mapSelStar&&n.ul){sfxSel();startLv(n.li);}
+                    else if(n.ul){mapSelStar=n.si;sfxSel();}
+                    else beep(150,0.15,'sawtooth',0.06);
+                    return;
+                }
             }
         }
     }
@@ -1735,7 +1983,15 @@ addEventListener('keydown',e=>{if(state!=='map')return;
         if(e.key==='Enter'||e.key===' '){const li=UNIVERSES[mapGalaxy].constellations[mapSelConstellation];if(li<save.unlocked)zoomIntoConstellation(mapSelConstellation);}
     }else{
         if(e.key==='Escape'||e.key==='Backspace')zoomOutToGalaxy();
-        if(e.key==='Enter'||e.key===' '){const pb=renderMap._playBtn;if(pb&&pb.li<save.unlocked){sfxSel();startLv(pb.li);}}
+        const sn=renderMap._starNodes;
+        if(sn){
+            if(e.key==='ArrowUp'||e.key==='w'){mapSelStar=Math.max(0,mapSelStar-1);sfxSel();}
+            if(e.key==='ArrowDown'||e.key==='s'){mapSelStar=Math.min(sn.length-1,mapSelStar+1);sfxSel();}
+            if(e.key==='Enter'||e.key===' '){const n=sn[mapSelStar];if(n&&n.ul){sfxSel();startLv(n.li);}}
+        }else{
+            // Boss view
+            if(e.key==='Enter'||e.key===' '){const pb=renderMap._playBtn;if(pb&&pb.li<save.unlocked){sfxSel();startLv(pb.li);}}
+        }
     }
 });
 
@@ -1744,13 +2000,10 @@ function showScr(id){document.querySelectorAll('.scr').forEach(s=>s.classList.re
 function hideScr(){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('v'));document.getElementById('ui').classList.remove('on');}
 function showMap(){state='map';hideScr();document.getElementById('hud').style.display='none';document.getElementById('dp').style.display='none';document.getElementById('pov').classList.remove('v');
     mSel=Math.min(save.unlocked-1,LEVELS.length-1);
-    mapGalaxy=0;mapSelConstellation=0;mapMode='galaxy';
+    mapGalaxy=0;mapSelConstellation=0;mapSelStar=0;mapMode='galaxy';
+    // Find which galaxy the player's highest level is in
     for(let gi=0;gi<UNIVERSES.length;gi++){
-        if(UNIVERSES[gi].constellations.includes(mSel)){
-            mapGalaxy=gi;
-            mapSelConstellation=UNIVERSES[gi].constellations.indexOf(mSel);
-            break;
-        }
+        if(UNIVERSES[gi].constellations.includes(mSel)){mapGalaxy=gi;break;}
     }
     mapZoom=1;mapZoomTarget=1;mapCamX=0;mapCamY=0;mapCamTargetX=0;mapCamTargetY=0;
     if(musicScene!=='menu')startMusic('menu');
@@ -2020,7 +2273,7 @@ setDpad.onclick=()=>{dpadSize=(dpadSize+1)%3;try{localStorage.setItem('zd_dsize'
 
 document.getElementById('set-reset').onclick=()=>{
     if(confirm('Reset ALL save data? Stars, scores, ships — everything!')){
-        try{localStorage.removeItem('zd5');}catch(e){}
+        try{localStorage.removeItem('zd6');}catch(e){}
         save={hi:0,unlocked:1,stars:[],scores:[],ship:0};curShip=0;
         hideSettings();showMap();
     }
