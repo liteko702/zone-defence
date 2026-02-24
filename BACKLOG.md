@@ -1,5 +1,10 @@
 # Zone Defence — Development Backlog
 
+## 📖 TERMINOLOGY
+- **Universe** = themed stage/world (e.g. Andromeda). Each introduces new mechanics.
+- **Constellation** = individual playable level within a universe (e.g. Orion). Named after real constellations.
+- **Round** = one attempt/life within a constellation.
+
 **Last updated:** 2026-02-24
 **Game:** Qix-style territory capture across constellations
 **Live:** https://zone-defence.kbot.uk

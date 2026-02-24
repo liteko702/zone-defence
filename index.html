@@ -157,59 +157,75 @@ phoenix:{stars:[[.5,.1],[.35,.3],[.65,.3],[.2,.5],[.8,.5],[.3,.7],[.7,.7],[.5,.8
 };
 
 // ===== ENEMY TYPES =====
-// bounce=standard bouncer, chase=follows player, plus new types:
-// phase=teleports periodically, split=splits into 2 when hit by bullet,
-// shield=needs 2 bullet hits, orbit=circles the unclaimed area edges
-// tracer=follows your trail path
+// bounce=standard bouncer, chase=follows player, phase=teleports,
+// split=splits when shot, shield=needs 2 hits, orbit=circles edges,
+// tracer=follows trail, boss=universe boss (large, shoots rockets)
 
-// ===== LEVELS — 12 constellation-themed levels in 3 galaxies =====
-const GALAXIES=[
-  {name:'INNER RIM',color:'#0af',levels:[0,1,2,3]},
-  {name:'DEEP VOID',color:'#a0f',levels:[4,5,6,7]},
-  {name:'OUTER REACH',color:'#f80',levels:[8,9,10,11]},
+// ===== STRUCTURE =====
+// UNIVERSE → contains 4 CONSTELLATIONS (playable levels)
+// Each universe introduces new mechanics/enemies/ships
+// Constellation 4 of each universe = BOSS fight
+
+const UNIVERSES=[
+  {name:'ANDROMEDA',color:'#0af',constellations:[0,1,2,3],
+   intro:'LEARN THE BASICS.\nCAPTURE TERRITORY.\nAVOID ENEMIES.',
+   unlocks:'Basic zone capture mechanics'},
+  {name:'MILKY WAY',color:'#a0f',constellations:[4,5,6,7],
+   intro:'WEAPONS ONLINE!\nSHOOT TO STUN.\nNEW THREATS EMERGE.',
+   unlocks:'Shooting + Tracer & Shield enemies'},
+  {name:'NEBULA PRIME',color:'#f80',constellations:[8,9,10,11],
+   intro:'THE FINAL FRONTIER.\nALL SYSTEMS ACTIVE.\nSURVIVE THE SWARM.',
+   unlocks:'All enemy types + ultimate challenge'},
 ];
+
 const LEVELS=[
-// === GALAXY 1: INNER RIM ===
-{name:"ORION",constellation:'orion',galaxy:0,
+// === UNIVERSE 1: ANDROMEDA (pure zone capture) ===
+{name:"ORION",constellation:'orion',universe:0,
  desc:"THE HUNTER.\nONE PATROL DRONE.\nLEARN THE BASICS.",
  enemies:[{speed:3,type:'bounce'}],lives:3,target:75,color:'#6cf'},
-{name:"LYRA",constellation:'lyra',galaxy:0,
+{name:"LYRA",constellation:'lyra',universe:0,
  desc:"THE HARP.\nTWO DRONES.\nWATCH YOUR TRAIL!",
  enemies:[{speed:3.5,type:'bounce'},{speed:3.5,type:'bounce'}],lives:3,target:75,color:'#0fa'},
-{name:"CASSIOPEIA",constellation:'cassiopeia',galaxy:0,
+{name:"CASSIOPEIA",constellation:'cassiopeia',universe:0,
  desc:"THE QUEEN.\nA HUNTER LOCKS ON!",
  enemies:[{speed:3,type:'bounce'},{speed:2.5,type:'chase'}],lives:3,target:75,color:'#a8f'},
-{name:"CYGNUS",constellation:'cygnus',galaxy:0,
- desc:"THE SWAN.\nPHASE SHIFTER APPEARS!\nIT TELEPORTS AROUND.",
- enemies:[{speed:3.5,type:'bounce'},{speed:3,type:'bounce'},{speed:2,type:'phase'}],lives:3,target:75,color:'#0ff'},
+{name:"CYGNUS",constellation:'cygnus',universe:0,boss:true,
+ desc:"THE SWAN.\n⚠ BOSS: CYGNUS GUARDIAN\nCAPTURE IT IN A ZONE\nTHEN SHOOT TO FINISH!",
+ enemies:[{speed:3,type:'bounce'},{speed:2.5,type:'bounce'}],
+ bossEnemy:{speed:2,type:'boss',hp:6,name:'CYGNUS GUARDIAN'},
+ lives:3,target:75,color:'#0ff'},
 
-// === GALAXY 2: DEEP VOID ===
-{name:"SCORPIUS",constellation:'scorpius',galaxy:1,
- desc:"THE SCORPION.\nTRACER FOLLOWS YOUR PATH!\nDON'T DOUBLE BACK.",
+// === UNIVERSE 2: MILKY WAY (shooting + new enemies) ===
+{name:"SCORPIUS",constellation:'scorpius',universe:1,
+ desc:"THE SCORPION.\n🔫 WEAPONS ONLINE!\nTRACER FOLLOWS YOUR PATH!",
  enemies:[{speed:4,type:'bounce'},{speed:3.5,type:'bounce'},{speed:2.5,type:'tracer'}],lives:3,target:75,color:'#f44'},
-{name:"LEO",constellation:'leo',galaxy:1,
+{name:"LEO",constellation:'leo',universe:1,
  desc:"THE LION.\nSHIELDED ENEMIES!\nSHOOT THEM TWICE.",
  enemies:[{speed:4,type:'bounce'},{speed:3,type:'chase'},{speed:3,type:'shield'}],lives:4,target:78,color:'#fa0'},
-{name:"GEMINI",constellation:'gemini',galaxy:1,
+{name:"GEMINI",constellation:'gemini',universe:1,
  desc:"THE TWINS.\nSPLITTERS DIVIDE\nWHEN SHOT!",
  enemies:[{speed:4.5,type:'bounce'},{speed:3.5,type:'chase'},{speed:3,type:'split'}],lives:4,target:78,color:'#ff0'},
-{name:"DRACO",constellation:'draco',galaxy:1,
- desc:"THE DRAGON.\nORBITERS PATROL\nTHE EDGES!",
- enemies:[{speed:4.5,type:'bounce'},{speed:4,type:'bounce'},{speed:3,type:'chase'},{speed:2.5,type:'orbit'}],lives:4,target:80,color:'#8f0'},
+{name:"DRACO",constellation:'draco',universe:1,boss:true,
+ desc:"THE DRAGON.\n⚠ BOSS: DRACO WYRM\nORBITERS PATROL THE EDGES!\nTRAP & DESTROY THE WYRM!",
+ enemies:[{speed:4,type:'bounce'},{speed:3.5,type:'orbit'}],
+ bossEnemy:{speed:2.5,type:'boss',hp:10,name:'DRACO WYRM'},
+ lives:4,target:80,color:'#8f0'},
 
-// === GALAXY 3: OUTER REACH ===
-{name:"PERSEUS",constellation:'perseus',galaxy:2,
- desc:"THE HERO.\nALL ENEMY TYPES!\nSTAY SHARP.",
+// === UNIVERSE 3: NEBULA PRIME (all mechanics) ===
+{name:"PERSEUS",constellation:'perseus',universe:2,
+ desc:"THE HERO.\nPHASE SHIFTERS!\nTHEY TELEPORT AROUND.",
  enemies:[{speed:5,type:'bounce'},{speed:4,type:'chase'},{speed:3,type:'phase'},{speed:3,type:'tracer'}],lives:4,target:78,color:'#f8a'},
-{name:"AQUILA",constellation:'aquila',galaxy:2,
+{name:"AQUILA",constellation:'aquila',universe:2,
  desc:"THE EAGLE.\nFAST SWARM!\nCLAIM 80%.",
  enemies:[{speed:5.5,type:'bounce'},{speed:5,type:'bounce'},{speed:4.5,type:'bounce'},{speed:3.5,type:'chase'},{speed:3,type:'shield'}],lives:4,target:80,color:'#4af'},
-{name:"SAGITTARIUS",constellation:'sagittarius',galaxy:2,
+{name:"SAGITTARIUS",constellation:'sagittarius',universe:2,
  desc:"THE ARCHER.\nSPLIT SWARM!\nSHOOT TO SURVIVE.",
  enemies:[{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:3.5,type:'split'},{speed:3.5,type:'split'},{speed:3,type:'phase'}],lives:5,target:80,color:'#f4a'},
-{name:"PHOENIX",constellation:'phoenix',galaxy:2,
- desc:"THE FIREBIRD.\nULTIMATE CHALLENGE!\nCLAIM 85%!",
- enemies:[{speed:5.5,type:'bounce'},{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:4,type:'chase'},{speed:3.5,type:'phase'},{speed:3,type:'shield'},{speed:3,type:'orbit'}],lives:5,target:85,color:'#ff0',boss:true},
+{name:"PHOENIX",constellation:'phoenix',universe:2,boss:true,
+ desc:"THE FIREBIRD.\n⚠ FINAL BOSS: PHOENIX LORD\nTHE ULTIMATE CHALLENGE!\nCAPTURE · SHOOT · SURVIVE!",
+ enemies:[{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:4,type:'phase'},{speed:3.5,type:'orbit'}],
+ bossEnemy:{speed:3,type:'boss',hp:15,name:'PHOENIX LORD'},
+ lives:5,target:85,color:'#ff0'},
 ];
 
 // ===== SHIPS =====
@@ -538,7 +554,7 @@ const BULLET_SPEED=18; // grid cells per second
 let captureKills=0; // enemies eliminated by enclosure
 const MIN_ENEMIES=1; // always keep at least 1 alive
 let enemyRespawnQueue=[]; // {timer, def}
-function canShoot(){return LEVELS[curLv]?.galaxy>=1;} // no shooting in Galaxy 1
+function canShoot(){return LEVELS[curLv]?.universe>=1;} // no shooting in Universe 1 (Andromeda)
 
 const PICKUP_RADIUS=2; // grid cells — collect within 2 cells
 const PTYPE=[
@@ -808,18 +824,21 @@ function checkWin(){
         document.getElementById('w-sc').textContent='SCORE: '+score;
         document.getElementById('w-info').innerHTML=info;
         // Galaxy transition check
-        const curGal=LEVELS[curLv].galaxy;
-        const nextGal=curLv+1<LEVELS.length?LEVELS[curLv+1].galaxy:null;
-        if(nextGal!==null&&nextGal!==curGal){
-            document.getElementById('w-info').innerHTML+=`<br><br><span style="color:${GALAXIES[nextGal].color}">★ ENTERING ${GALAXIES[nextGal].name} ★</span>`;
+        const curUni=LEVELS[curLv].universe;
+        const nextUni=curLv+1<LEVELS.length?LEVELS[curLv+1].universe:null;
+        if(nextUni!==null&&nextUni!==curUni){
+            document.getElementById('w-info').innerHTML+=`<br><br><span style="color:${UNIVERSES[nextUni].color}">★ ENTERING ${UNIVERSES[nextUni].name} ★</span>`;
         }
         showScr('s-win');
     }
 }
 
 // ===== ENEMIES =====
+let bossRef=null; // reference to boss enemy if present
+let rockets=[]; // boss rockets
+
 function initE(lvl){
-    enemies=[];bullets=[];captureKills=0;
+    enemies=[];bullets=[];captureKills=0;rockets=[];bossRef=null;
     for(const ed of lvl.enemies){
     let ex,ey;do{ex=3+Math.floor(Math.random()*(COLS-6));ey=3+Math.floor(Math.random()*(ROWS-6));}while(grid[ey][ex]!==EMPTY);
     const a=Math.random()*Math.PI*2;
@@ -830,6 +849,18 @@ function initE(lvl){
         phaseTimer:3+Math.random()*4,
         orbitAngle:Math.random()*Math.PI*2,
         rot:0,stuckT:0});}
+    // Spawn boss if level has one
+    if(lvl.bossEnemy){
+        const bd=lvl.bossEnemy;
+        let bx,by;do{bx=Math.floor(COLS/2)+(Math.random()*6-3|0);by=Math.floor(ROWS/2)+(Math.random()*4-2|0);}while(grid[by][bx]!==EMPTY);
+        const be={x:bx,y:by,fx:bx,fy:by,dx:0.5,dy:0.5,
+            speed:bd.speed,origSpeed:bd.speed,type:'boss',chase:false,
+            hp:bd.hp,maxHp:bd.hp,bossName:bd.name,
+            phaseTimer:0,orbitAngle:0,rot:0,stuckT:0,
+            stunTimer:0,rocketTimer:2+Math.random()*2,
+            captured:false};
+        enemies.push(be);bossRef=be;
+    }
 }
 function relocateE(e){
     // Teleport enemy to random EMPTY cell far from player
@@ -892,13 +923,31 @@ function moveE(dt){
             }
             e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
         }else if(e.type==='orbit'){
-            // Circle around the border of unclaimed area
             e.orbitAngle+=e.speed*0.04*dt;
             const cx=COLS/2,cy=ROWS/2,rx=(COLS-4)*0.4,ry=(ROWS-4)*0.4;
             const tx=cx+Math.cos(e.orbitAngle)*rx,ty=cy+Math.sin(e.orbitAngle)*ry;
             const odx=tx-e.fx,ody=ty-e.fy;
             e.fx+=odx*3*dt;e.fy+=ody*3*dt;
             e.dx=odx;e.dy=ody;
+        }else if(e.type==='boss'){
+            // Boss: slow wanderer, shoots rockets at player
+            if(e.stunTimer>0){e.stunTimer-=dt;} // stunned = can't move or shoot
+            else if(e.captured){
+                // Captured in zone — just sit still, take bullet damage
+            }else{
+                // Wander randomly, change direction occasionally
+                e.orbitAngle+=dt;
+                if(Math.sin(e.orbitAngle*2)>0.95){e.dx=(Math.random()-0.5)*2;e.dy=(Math.random()-0.5)*2;}
+                e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+                // Shoot rockets at player
+                e.rocketTimer-=dt;
+                if(e.rocketTimer<=0){
+                    const rdx=player.x-e.fx,rdy=player.y-e.fy,rd=Math.sqrt(rdx*rdx+rdy*rdy)||1;
+                    rockets.push({x:e.fx*CELL+CELL/2,y:e.fy*CELL+CELL/2,dx:rdx/rd,dy:rdy/rd,life:3,speed:CELL*6});
+                    e.rocketTimer=1.5+Math.random()*2;
+                    beep(150,0.15,'sawtooth',0.04);
+                }
+            }
         }else{
             // Standard bounce
             e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
@@ -949,12 +998,34 @@ function updateBullets(dt){
             if(e.dead)continue;
             const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2+GRID_TOP;
             const hdx=b.x-ex,hdy=b.y-ey;
-            if(hdx*hdx+hdy*hdy<(CELL*1.5)**2){
+            if(hdx*hdx+hdy*hdy<(CELL*(e.type==='boss'?2.5:1.5))**2){
+                // Boss: only takes damage when captured/stunned
+                if(e.type==='boss'&&!e.captured){
+                    // Bullets bounce off uncaptured boss
+                    sp(ex,ey-GRID_TOP,'#888',4,20,0.15);
+                    addFT(ex,ey-GRID_TOP-10,'IMMUNE!','#888',7);
+                    bullets.splice(i,1);break;
+                }
                 e.hp-=(b.dmg||1);
                 sp(ex,ey-GRID_TOP,'#fff',8,30,0.2);
                 sfxHit();
+                if(e.type==='boss'){
+                    // Show HP remaining
+                    addFT(ex,ey-GRID_TOP-10,e.hp+'/'+e.maxHp+' HP','#f44',8);
+                }
                 if(e.hp<=0){
                     // Kill enemy
+                    if(e.type==='boss'){
+                        // Boss defeated!
+                        e.dead=true;score+=2000;bossRef=null;rockets=[];
+                        addFT(ex,ey-GRID_TOP-20,'BOSS DEFEATED!','#ff0',16);
+                        addFT(ex,ey-GRID_TOP,'+2000','#0f0',12);
+                        sp(ex,ey-GRID_TOP,'#ff0',40,80,0.6);
+                        sp(ex,ey-GRID_TOP,'#f42',30,60,0.5);
+                        shakeA=12;shakeD=0.5;
+                        for(let k=0;k<5;k++)setTimeout(()=>{beep(400+k*100,0.15,'square',0.06);sp(ex+(Math.random()-0.5)*40,ey-GRID_TOP+(Math.random()-0.5)*40,'#fa0',10,40,0.3);},k*100);
+                        bullets.splice(i,1);break;
+                    }
                     if(e.type==='split'){
                         // Spawn 2 smaller faster enemies
                         for(let j=0;j<2;j++){
@@ -982,23 +1053,51 @@ function updateBullets(dt){
     }
 }
 
+// ===== ROCKETS (boss projectiles) =====
+function updateRockets(dt){
+    for(let i=rockets.length-1;i>=0;i--){
+        const r=rockets[i];
+        r.x+=r.dx*r.speed*dt;r.y+=r.dy*r.speed*dt;r.life-=dt;
+        if(r.life<=0||r.x<0||r.x>W||r.y<0||r.y>H){rockets.splice(i,1);continue;}
+        // Hit player?
+        const px=player.vx*CELL+CELL/2,py=player.vy*CELL+CELL/2+GRID_TOP;
+        const rdx=r.x-px,rdy=r.y-py;
+        if(rdx*rdx+rdy*rdy<(CELL*2)**2){
+            rockets.splice(i,1);
+            killP();return;
+        }
+    }
+}
+
 // ===== CAPTURE KILLS — enemies enclosed by claim get eliminated =====
 function checkCaptureKills(){
-    // After a claim, check if any enemies are now in tiny areas
     for(const e of enemies){
         if(e.dead)continue;
         const ex=Math.round(e.fx),ey=Math.round(e.fy);
         if(cAt(ex,ey)===CLAIMED){
-            // Enemy is inside claimed territory — captured!
-            e.dead=true;captureKills++;score+=500;
-            sfxCapture();
-            const px=e.fx*CELL+CELL/2,py=e.fy*CELL+CELL/2;
-            addFT(px,py-10,'CAPTURED! +500','#0ff',11);
-            sp(px,py,'#0ff',25,60,0.5);
-            // Queue respawn if too few remain
-            const alive2=enemies.filter(en=>!en.dead).length;
-            if(alive2<MIN_ENEMIES){
-                enemyRespawnQueue.push({timer:3,speed:e.origSpeed||3,type:'bounce'});
+            if(e.type==='boss'){
+                // Boss captured in zone — stun it, make vulnerable to bullets!
+                if(!e.captured){
+                    e.captured=true;e.stunTimer=8;e.speed=0;
+                    sfxCapture();
+                    const px=e.fx*CELL+CELL/2,py=e.fy*CELL+CELL/2;
+                    addFT(px,py-20,'BOSS CAPTURED!','#ff0',14);
+                    addFT(px,py,'SHOOT IT NOW!','#f44',10);
+                    sp(px,py,'#ff0',30,70,0.6);
+                    // Clear rockets when boss is captured
+                    rockets=[];
+                }
+            }else{
+                // Normal enemy captured
+                e.dead=true;captureKills++;score+=500;
+                sfxCapture();
+                const px=e.fx*CELL+CELL/2,py=e.fy*CELL+CELL/2;
+                addFT(px,py-10,'CAPTURED! +500','#0ff',11);
+                sp(px,py,'#0ff',25,60,0.5);
+                const alive2=enemies.filter(en=>!en.dead).length;
+                if(alive2<MIN_ENEMIES){
+                    enemyRespawnQueue.push({timer:3,speed:e.origSpeed||3,type:'bounce'});
+                }
             }
         }
     }
@@ -1185,7 +1284,7 @@ function render(time){
 
     // Enemies
     for(const e of enemies){if(e.dead)continue;const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2;
-    const ecol=e.type==='chase'?'#f42':e.type==='phase'?'#f0f':e.type==='tracer'?'#0f0':e.type==='shield'?'#ff0':e.type==='orbit'?'#0ff':e.type==='split'?'#fa0':'#c4f';
+    const ecol=e.type==='boss'?'#f00':e.type==='chase'?'#f42':e.type==='phase'?'#f0f':e.type==='tracer'?'#0f0':e.type==='shield'?'#ff0':e.type==='orbit'?'#0ff':e.type==='split'?'#fa0':'#c4f';
     if(Math.random()>0.6)sp(ex-Math.cos(e.rot)*4,ey-Math.sin(e.rot)*4,ecol,1,12,0.1);
     // Shield indicator
     if(e.type==='shield'&&e.hp>1){c.strokeStyle='rgba(255,255,0,0.5)';c.lineWidth=2;c.beginPath();c.arc(ex,ey,CELL*1.5,0,Math.PI*2);c.stroke();}
@@ -1194,7 +1293,21 @@ function render(time){
     drawEnemy(ex,ey,e.rot,e.type==='chase'||e.type==='tracer',time);
     c.globalAlpha=1;
     // Type label
-    if(e.type!=='bounce'){c.fillStyle=ecol;c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    if(e.type==='boss'){
+        // Boss: larger, HP bar, name
+        const bsz=CELL*3;
+        // Captured glow
+        if(e.captured){c.strokeStyle='rgba(255,255,0,0.5)';c.lineWidth=3;c.setLineDash([6,4]);c.beginPath();c.arc(ex,ey,bsz,0,Math.PI*2);c.stroke();c.setLineDash([]);}
+        // HP bar
+        const hpW=CELL*4,hpH=4,hpX=ex-hpW/2,hpY=ey-bsz-8;
+        c.fillStyle='#400';c.fillRect(hpX,hpY,hpW,hpH);
+        c.fillStyle=e.hp>e.maxHp*0.3?'#f44':'#f00';c.fillRect(hpX,hpY,hpW*(e.hp/e.maxHp),hpH);
+        c.strokeStyle='#fff';c.lineWidth=0.5;c.strokeRect(hpX,hpY,hpW,hpH);
+        // Name
+        c.fillStyle='#f44';c.font=Math.max(6,CELL*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+        c.fillText(e.bossName||'BOSS',ex,hpY-3);
+        if(e.captured&&e.stunTimer>0){c.fillStyle='#ff0';c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textBaseline='top';c.fillText('STUNNED '+Math.ceil(e.stunTimer)+'s',ex,ey+bsz+2);}
+    }else if(e.type!=='bounce'){c.fillStyle=ecol;c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
     const lbl=e.type==='phase'?'PHASE':e.type==='tracer'?'TRACE':e.type==='shield'?'ARMOR':e.type==='orbit'?'ORBIT':e.type==='split'?'SPLIT':'';
     c.fillText(lbl,ex,ey+CELL*1.2);}}
 
@@ -1215,6 +1328,12 @@ function render(time){
         // Core
         c.fillStyle='#ff0';c.beginPath();c.arc(bx,by,CELL*0.25,0,Math.PI*2);c.fill();
         c.fillStyle='#fff';c.beginPath();c.arc(bx,by,CELL*0.1,0,Math.PI*2);c.fill();
+    }
+    // Rockets (boss projectiles)
+    for(const r of rockets){
+        c.fillStyle='rgba(255,60,0,0.4)';c.beginPath();c.arc(r.x,r.y,CELL*0.8,0,Math.PI*2);c.fill();
+        c.fillStyle='#f42';c.beginPath();c.arc(r.x,r.y,CELL*0.35,0,Math.PI*2);c.fill();
+        c.fillStyle='#fa0';c.beginPath();c.arc(r.x,r.y,CELL*0.15,0,Math.PI*2);c.fill();
     }
     c.restore();
 
@@ -1256,8 +1375,8 @@ function renderMap(time){
     }
 
     // Draw galaxy labels
-    for(const g of GALAXIES){
-        const first=nodes[g.levels[0]],last=nodes[g.levels[g.levels.length-1]];
+    for(const g of UNIVERSES){
+        const first=nodes[g.constellations[0]],last=nodes[g.constellations[g.constellations.length-1]];
         const gy=(first.y+last.y)/2;
         c.fillStyle=g.color;c.globalAlpha=0.3;
         c.font=Math.max(6,fs*0.4)+'px "Press Start 2P"';c.textAlign='right';
@@ -1352,8 +1471,8 @@ function startLv(i){
     lives=Math.max(1,lv.lives+ship.lives);score=0;
     initG();initP();initE(lv);powerups=[];inputDir='none';P.length=0;FT.length=0;claimAC=[];cutsCt=0;enemyRespawnQueue=[];
     document.getElementById('l-title').textContent='✦ '+lv.name+' ✦';
-    let desc=GALAXIES[lv.galaxy].name+'\n\n'+lv.desc;
-    if(lv.galaxy>=1&&curLv===4)desc+='\n\n🔫 WEAPONS ONLINE!';
+    let desc=UNIVERSES[lv.universe].name+'\n\n'+lv.desc;
+    if(lv.universe>=1&&curLv===4)desc+='\n\n🔫 WEAPONS ONLINE!';
     document.getElementById('l-desc').textContent=desc;
     showScr('s-lvl');state='levelIntro';
 }
@@ -1454,7 +1573,7 @@ document.getElementById('b-hangar-back').onclick=()=>{sfxSel();showMap();};
 let lt=0;
 function loop(time){
     const dt=Math.min((time-lt)/1000,0.05);lt=time;
-    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();
+    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);updateRockets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();
     // Process enemy respawn queue
     for(let i=enemyRespawnQueue.length-1;i>=0;i--){
         enemyRespawnQueue[i].timer-=dt;
