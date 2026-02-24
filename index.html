@@ -1359,6 +1359,8 @@ function drawShip(px,py,rot,cutting,time,shipIdx){
     c.save();c.translate(px,py);c.rotate(rot-Math.PI/2);
     const s=Math.max(CELL*1.8,14);const fl=0.5+0.5*Math.sin(time*0.015);
     const c1=sh.color1,c2=sh.color2;
+    // Ship glow outline
+    c.shadowColor=cutting?'rgba(0,255,200,0.8)':c2;c.shadowBlur=s*0.12;c.shadowOffsetX=0;c.shadowOffsetY=0;
 
     // === ENGINE EXHAUST ===
     // Main thruster glow
@@ -1528,20 +1530,25 @@ function drawShip(px,py,rot,cutting,time,shipIdx){
 
 function drawEnemy(ex,ey,rot,etype,time){
     c.save();c.translate(ex,ey);c.rotate(rot-Math.PI/2);
-    const baseS=Math.max(CELL*1.3,10);
-    // Size varies by type
-    const sizeMap={bounce:1.0,chase:1.1,phase:1.0,tracer:1.2,shield:1.4,orbit:1.1,split:1.15,boss:2.5};
+    const baseS=Math.max(CELL*1.5,12);
+    // Size varies by type — bigger than before
+    const sizeMap={bounce:1.1,chase:1.2,phase:1.1,tracer:1.3,shield:1.6,orbit:1.2,split:1.3,boss:3.0};
     const s=baseS*(sizeMap[etype]||1);
     const fl=0.5+0.5*Math.sin(time*0.02);
     const ep=0.4+0.6*Math.sin(time*0.008);
+    // Bold outline via shadowBlur — gives all sprites a colored glow border
+    const outCol={bounce:'#4af',chase:'#f44',phase:'#c4f',tracer:'#0f4',shield:'#ff0',orbit:'#fa0',split:'#f4a',boss:'#f00'}[etype]||'#fff';
+    c.shadowColor=outCol;c.shadowBlur=s*0.15;c.shadowOffsetX=0;c.shadowOffsetY=0;
 
     if(etype==='bounce'){
         // PATROL DRONE — disc-shaped surveillance craft with scanning beam
         // Hull — layered disc
         c.fillStyle='#0a2040';c.beginPath();c.ellipse(0,0,s*0.55,s*0.3,0,0,Math.PI*2);c.fill();
+        c.strokeStyle=outCol;c.lineWidth=2;c.stroke();
         const hg=c.createLinearGradient(-s*0.5,-s*0.15,s*0.5,s*0.15);
-        hg.addColorStop(0,'#1a4a7a');hg.addColorStop(0.5,'#2a6aaa');hg.addColorStop(1,'#1a4a7a');
+        hg.addColorStop(0,'#1a4a7a');hg.addColorStop(0.5,'#3a8aee');hg.addColorStop(1,'#1a4a7a');
         c.fillStyle=hg;c.beginPath();c.ellipse(0,-s*0.05,s*0.48,s*0.22,0,0,Math.PI*2);c.fill();
+        c.strokeStyle=outCol+'88';c.lineWidth=1.5;c.stroke();
         // Top dome
         const dg=c.createRadialGradient(0,-s*0.1,0,0,-s*0.08,s*0.18);
         dg.addColorStop(0,'rgba(150,220,255,0.9)');dg.addColorStop(0.6,'rgba(50,120,200,0.5)');dg.addColorStop(1,'rgba(20,60,120,0.2)');
@@ -1856,32 +1863,35 @@ function render(time){
 
     // Enemies
     for(const e of enemies){if(e.dead)continue;const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2;
-    const ecol=e.type==='boss'?'#f00':e.type==='chase'?'#f42':e.type==='phase'?'#f0f':e.type==='tracer'?'#0f0':e.type==='shield'?'#ff0':e.type==='orbit'?'#0ff':e.type==='split'?'#fa0':'#c4f';
-    if(Math.random()>0.6)sp(ex-Math.cos(e.rot)*4,ey-Math.sin(e.rot)*4,ecol,1,12,0.1);
-    // Shield indicator
-    if(e.type==='shield'&&e.hp>1){c.strokeStyle='rgba(255,255,0,0.5)';c.lineWidth=2;c.beginPath();c.arc(ex,ey,CELL*1.5,0,Math.PI*2);c.stroke();}
+    const ecol=ETYPE_COLORS[e.type]||'#c4f';
+    // Exhaust particles
+    if(Math.random()>0.5)sp(ex-Math.cos(e.rot)*4,ey-Math.sin(e.rot)*4,ecol,1,15,0.12);
+    // Shield energy field
+    if(e.type==='shield'&&e.hp>1){c.strokeStyle='rgba(255,255,0,0.4)';c.lineWidth=2.5;c.beginPath();c.arc(ex,ey,CELL*1.8,0,Math.PI*2);c.stroke();}
     // Phase shimmer
     if(e.type==='phase'&&e.phaseTimer<1){c.globalAlpha=0.3+0.7*e.phaseTimer;}
     drawEnemy(ex,ey,e.rot,e.type,time);
     c.globalAlpha=1;
-    // Type label
+
+    // === HP BAR (all enemies) ===
+    const maxHp=e.type==='shield'?2:e.type==='boss'?(e.maxHp||10):1;
     if(e.type==='boss'){
-        // Boss: larger, HP bar, name
-        const bsz=CELL*3;
-        // Captured glow
+        const bsz=CELL*3.5;
         if(e.captured){c.strokeStyle='rgba(255,255,0,0.5)';c.lineWidth=3;c.setLineDash([6,4]);c.beginPath();c.arc(ex,ey,bsz,0,Math.PI*2);c.stroke();c.setLineDash([]);}
-        // HP bar
-        const hpW=CELL*4,hpH=4,hpX=ex-hpW/2,hpY=ey-bsz-8;
-        c.fillStyle='#400';c.fillRect(hpX,hpY,hpW,hpH);
+        const hpW=CELL*5,hpH=5,hpX=ex-hpW/2,hpY=ey-bsz-10;
+        c.fillStyle='#300';c.fillRect(hpX-1,hpY-1,hpW+2,hpH+2);
         c.fillStyle=e.hp>e.maxHp*0.3?'#f44':'#f00';c.fillRect(hpX,hpY,hpW*(e.hp/e.maxHp),hpH);
-        c.strokeStyle='#fff';c.lineWidth=0.5;c.strokeRect(hpX,hpY,hpW,hpH);
-        // Name
+        c.strokeStyle='#888';c.lineWidth=0.8;c.strokeRect(hpX,hpY,hpW,hpH);
         c.fillStyle='#f44';c.font=Math.max(6,CELL*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
         c.fillText(e.bossName||'BOSS',ex,hpY-3);
-        if(e.captured&&e.stunTimer>0){c.fillStyle='#ff0';c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textBaseline='top';c.fillText('STUNNED '+Math.ceil(e.stunTimer)+'s',ex,ey+bsz+2);}
-    }else if(e.type!=='bounce'){c.fillStyle=ecol;c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    const lbl=e.type==='phase'?'PHASE':e.type==='tracer'?'TRACE':e.type==='shield'?'ARMOR':e.type==='orbit'?'ORBIT':e.type==='split'?'SPLIT':'';
-    c.fillText(lbl,ex,ey+CELL*1.2);}}
+        if(e.captured&&e.stunTimer>0){c.fillStyle='#ff0';c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textBaseline='top';c.fillText('STUNNED',ex,ey+bsz+2);}
+    }else if(maxHp>1||e.type==='shield'){
+        // Mini HP bar for multi-HP enemies
+        const hpW=CELL*1.8,hpH=3,hpX=ex-hpW/2,hpY=ey-CELL*1.2;
+        c.fillStyle='#200';c.fillRect(hpX,hpY,hpW,hpH);
+        c.fillStyle=ecol;c.fillRect(hpX,hpY,hpW*(e.hp/maxHp),hpH);
+        c.strokeStyle='#555';c.lineWidth=0.5;c.strokeRect(hpX,hpY,hpW,hpH);
+    }}
 
     // Player (smooth position)
     if(state==='playing'||state==='dying'||state==='paused'){
@@ -1895,11 +1905,20 @@ function render(time){
     c.save();c.translate(0,-GRID_TOP);
     for(const b of bullets){
         const bx=b.x,by=b.y;
-        // Glow
-        c.fillStyle='rgba(255,200,50,0.3)';c.beginPath();c.arc(bx,by,CELL*0.6,0,Math.PI*2);c.fill();
+        const sh=SHIPS[curShip];const bCol=sh.bulletCol||'#ff0';
+        // Trail streak
+        const angle=Math.atan2(b.dy,b.dx);
+        const tx=bx-Math.cos(angle)*CELL*1.2,ty=by-Math.sin(angle)*CELL*1.2;
+        const tg=c.createLinearGradient(tx,ty,bx,by);
+        tg.addColorStop(0,'transparent');tg.addColorStop(0.5,bCol+'40');tg.addColorStop(1,bCol+'aa');
+        c.strokeStyle=tg;c.lineWidth=CELL*0.35;c.beginPath();c.moveTo(tx,ty);c.lineTo(bx,by);c.stroke();
+        // Outer glow
+        c.shadowColor=bCol;c.shadowBlur=8;
+        c.fillStyle=bCol+'80';c.beginPath();c.arc(bx,by,CELL*0.4,0,Math.PI*2);c.fill();
         // Core
-        c.fillStyle='#ff0';c.beginPath();c.arc(bx,by,CELL*0.25,0,Math.PI*2);c.fill();
-        c.fillStyle='#fff';c.beginPath();c.arc(bx,by,CELL*0.1,0,Math.PI*2);c.fill();
+        c.fillStyle=bCol;c.beginPath();c.arc(bx,by,CELL*0.2,0,Math.PI*2);c.fill();
+        c.fillStyle='#fff';c.beginPath();c.arc(bx,by,CELL*0.08,0,Math.PI*2);c.fill();
+        c.shadowBlur=0;
     }
     // Rockets (boss projectiles)
     for(const r of rockets){
