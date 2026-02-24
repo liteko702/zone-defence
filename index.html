@@ -37,7 +37,7 @@
         #dd{left:calc(var(--bs) + var(--gap));bottom:0}
         #dl{left:0;top:calc(var(--bs) + var(--gap))}
         #dr{right:0;top:calc(var(--bs) + var(--gap))}
-        @media(pointer:coarse),(max-width:900px){#dp{display:block}}
+        @media(pointer:coarse),(max-width:900px){#dp.active{display:block}}
         @media(max-height:500px){#dp{--bs:44px}}
         #fs{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,8px));right:12px;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:16px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1}
         #dpad-lock{position:fixed;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:14px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1;display:none}
@@ -2509,7 +2509,7 @@ addEventListener('keydown',e=>{if(state!=='map')return;
 // ===== UI =====
 function showScr(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('v'));document.getElementById(id).classList.add('v');document.getElementById('ui').classList.add('on');}
 function hideScr(){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('v'));document.getElementById('ui').classList.remove('on');}
-function showMap(){state='map';hideScr();document.getElementById('hud').style.display='none';document.getElementById('dp').style.display='none';document.getElementById('pov').classList.remove('v');
+function showMap(){state='map';hideScr();document.getElementById('hud').style.display='none';document.getElementById('dp').classList.remove('active');document.getElementById('pov').classList.remove('v');
     mSel=Math.min(save.unlocked-1,LEVELS.length-1);
     mapGalaxy=0;mapSelConstellation=0;mapSelStar=0;mapMode='galaxy';
     // Find which galaxy the player's highest level is in
@@ -2535,7 +2535,7 @@ function startLv(i){
     document.getElementById('l-desc').textContent=desc;
     showScr('s-lvl');state='levelIntro';
 }
-function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';cogBtn.style.display='none';hideSettings();state='playing';startMusic(LEVELS[curLv]?.boss?'boss':'gameplay');}
+function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').classList.add('active');cogBtn.style.display='none';hideSettings();state='playing';startMusic(LEVELS[curLv]?.boss?'boss':'gameplay');}
 function respawn(){const ship=SHIPS[curShip];for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;player.mt=0;inputDir='none';playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;shieldTimer=0;hideScr();state='playing';}
 
 // Buttons
@@ -2596,7 +2596,7 @@ let _hangarBtns=[]; // hit targets
 function showHangar(){
     hangarSel=curShip;hangarTab=0;hangarScroll=0;state='hangar';hideScr();
     document.getElementById('hud').style.display='none';
-    document.getElementById('dp').style.display='none';
+    document.getElementById('dp').classList.remove('active');
 }
 
 function drawShipDetailed(ctx,sh,cx,cy,size,time){
@@ -2989,7 +2989,7 @@ function startSandbox(){
     P.length=0;FT.length=0;claimAC=[];enemyRespawnQueue=[];
     playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;
     document.getElementById('hud').style.display='flex';
-    document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';
+    document.getElementById('dp').classList.add('active');
     cogBtn.style.display='none';hideSettings();
     startMusic('gameplay');
     updateHUD();
@@ -3110,7 +3110,7 @@ function handleSandboxTap(mx,my){
             else if(b.action==='spawnPow'){spawnPow();sfxSel();}
             else if(b.action==='resetField'){initG();for(const t of trail)grid[t.y]&&(grid[t.y][t.x]=EMPTY);trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;claimedC=0;sfxSel();}
             else if(b.action==='close'){sandboxOpen=false;sfxSel();}
-            else if(b.action==='exit'){sandboxOpen=false;state='title';showScr('s-title');document.getElementById('hud').style.display='none';document.getElementById('dp').style.display='none';cogBtn.style.display='block';startMusic('menu');sfxSel();}
+            else if(b.action==='exit'){sandboxOpen=false;state='title';showScr('s-title');document.getElementById('hud').style.display='none';document.getElementById('dp').classList.remove('active');cogBtn.style.display='block';startMusic('menu');sfxSel();}
             return true;
         }
     }
