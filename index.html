@@ -316,10 +316,38 @@ function render(time){
         const cell=grid[r][cc];if(cell===EMPTY)continue;
         const x=cc*CELL,y=r*CELL;
         if(cell===BORDER){
-            c.fillStyle='#1a2a4a';c.fillRect(x,y,CELL,CELL);
-            c.strokeStyle='rgba(0,120,255,0.25)';c.strokeRect(x+0.5,y+0.5,CELL-1,CELL-1);
+            // Thin border: just a 1-2px line on the inner edge
+            const bTop=r===0,bBot=r===ROWS-1,bL=cc===0,bR=cc===COLS-1;
+            c.fillStyle='rgba(10,18,35,0.6)';c.fillRect(x,y,CELL,CELL);
+            c.fillStyle='#1a4a8a';
+            if(bTop)c.fillRect(x,y+CELL-2,CELL,2);
+            if(bBot)c.fillRect(x,y,CELL,2);
+            if(bL)c.fillRect(x+CELL-2,y,2,CELL);
+            if(bR)c.fillRect(x,y,2,CELL);
+            // Corner glow dots
+            if((r+cc)%8===0){c.fillStyle='rgba(0,180,255,0.3)';c.fillRect(x+CELL/2-1,y+CELL/2-1,2,2);}
         }else if(cell===CLAIMED){
-            c.fillStyle=(r+cc)%2?'rgba(0,60,140,0.35)':'rgba(0,80,160,0.4)';c.fillRect(x,y,CELL,CELL);
+            // Industrial circuit platform texture
+            const seed=(r*31+cc*17)&0xff;
+            const plate=seed>128?'#0c1e38':'#0e2340';
+            c.fillStyle=plate;c.fillRect(x,y,CELL,CELL);
+            // Panel plates — 4x4 cell panels with visible edges
+            const pr4=r%4,pc4=cc%4;
+            if(pr4===0){c.fillStyle='rgba(0,180,255,0.12)';c.fillRect(x,y,CELL,1);}
+            if(pc4===0){c.fillStyle='rgba(0,180,255,0.12)';c.fillRect(x,y,1,CELL);}
+            // Circuit traces
+            c.fillStyle='rgba(0,140,220,0.2)';
+            if(seed&1)c.fillRect(x,y+((CELL/2)|0),CELL,1);
+            if(seed&2)c.fillRect(x+((CELL/2)|0),y,1,CELL);
+            // Bright nodes at trace intersections
+            if((seed&3)===3){c.fillStyle='rgba(0,200,255,0.4)';c.fillRect(x+((CELL/2)|0)-1,y+((CELL/2)|0)-1,3,3);}
+            // Edge highlight where claimed meets empty/border
+            if(cAt(cc,r-1)!==CLAIMED){c.fillStyle='rgba(0,180,255,0.3)';c.fillRect(x,y,CELL,2);}
+            if(cAt(cc,r+1)!==CLAIMED){c.fillStyle='rgba(0,120,200,0.2)';c.fillRect(x,y+CELL-1,CELL,1);}
+            if(cAt(cc-1,r)!==CLAIMED){c.fillStyle='rgba(0,180,255,0.3)';c.fillRect(x,y,2,CELL);}
+            if(cAt(cc+1,r)!==CLAIMED){c.fillStyle='rgba(0,120,200,0.2)';c.fillRect(x+CELL-1,y,1,CELL);}
+            // Rivets at panel corners
+            if(pr4===0&&pc4===0){c.fillStyle='rgba(100,160,220,0.4)';c.beginPath();c.arc(x+1,y+1,1.5,0,Math.PI*2);c.fill();}
         }else if(cell===TRAIL){
             c.fillStyle='#0fa';c.fillRect(x+1,y+1,CELL-2,CELL-2);
             c.fillStyle='rgba(200,255,220,0.6)';c.fillRect(x+2,y+2,CELL-4,CELL-4);
