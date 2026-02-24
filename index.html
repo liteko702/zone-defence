@@ -192,11 +192,72 @@ gameReady=true;
 let shakeA=0,shakeD=0,claimAC=[],claimAT=0;
 let powerups=[],playerSpeed=8,trailSpeed=6,shieldTimer=0;
 
+const PICKUP_RADIUS=2; // grid cells — collect within 2 cells
 const PTYPE=[
-{name:'SPEED',color:'#0ff',icon:'>>',effect:()=>{playerSpeed=12;trailSpeed=9;}},
-{name:'SHIELD',color:'#ff0',icon:'()',effect:()=>{shieldTimer=4;}},
-{name:'+1 LIFE',color:'#f44',icon:'♥',effect:()=>{lives=Math.min(lives+1,LEVELS[curLv].lives+2);}},
-{name:'SLOW',color:'#a0f',icon:'~~',effect:()=>{for(const e of enemies)e.origSpeed=e.speed,e.speed*=0.5;}},
+{name:'SPEED',color:'#0ff',effect:()=>{playerSpeed=12;trailSpeed=9;},
+ draw:(c,x,y,s,t)=>{
+    // Lightning bolt
+    const f=0.7+0.3*Math.sin(t*8);
+    c.fillStyle=`rgba(0,255,255,${0.3*f})`;c.beginPath();c.arc(x,y,s*1.4,0,Math.PI*2);c.fill();
+    c.fillStyle='#0ff';c.beginPath();
+    c.moveTo(x-s*0.15,y-s*0.55);c.lineTo(x+s*0.35,y-s*0.55);c.lineTo(x+s*0.05,y-s*0.05);
+    c.lineTo(x+s*0.3,y-s*0.05);c.lineTo(x-s*0.2,y+s*0.6);c.lineTo(x+s*0.0,y+s*0.1);
+    c.lineTo(x-s*0.25,y+s*0.1);c.closePath();c.fill();
+    c.fillStyle='rgba(255,255,255,0.8)';c.beginPath();
+    c.moveTo(x-s*0.08,y-s*0.4);c.lineTo(x+s*0.15,y-s*0.4);c.lineTo(x+s*0.03,y-s*0.05);
+    c.lineTo(x-s*0.08,y-s*0.05);c.closePath();c.fill();
+}},
+{name:'SHIELD',color:'#ff0',effect:()=>{shieldTimer=4;},
+ draw:(c,x,y,s,t)=>{
+    // Shield icon
+    const f=0.6+0.4*Math.sin(t*4);
+    c.fillStyle=`rgba(255,255,0,${0.2*f})`;c.beginPath();c.arc(x,y,s*1.4,0,Math.PI*2);c.fill();
+    c.fillStyle='#cc8800';c.beginPath();
+    c.moveTo(x,y-s*0.55);c.lineTo(x+s*0.4,y-s*0.3);c.lineTo(x+s*0.35,y+s*0.15);
+    c.quadraticCurveTo(x,y+s*0.6,x,y+s*0.6);c.quadraticCurveTo(x,y+s*0.6,x-s*0.35,y+s*0.15);
+    c.lineTo(x-s*0.4,y-s*0.3);c.closePath();c.fill();
+    c.fillStyle='#ff0';c.beginPath();
+    c.moveTo(x,y-s*0.4);c.lineTo(x+s*0.28,y-s*0.2);c.lineTo(x+s*0.24,y+s*0.1);
+    c.quadraticCurveTo(x,y+s*0.45,x,y+s*0.45);c.quadraticCurveTo(x,y+s*0.45,x-s*0.24,y+s*0.1);
+    c.lineTo(x-s*0.28,y-s*0.2);c.closePath();c.fill();
+    // Star emblem
+    c.fillStyle='rgba(255,255,255,0.7)';c.font='bold '+Math.max(6,s*0.35)+'px sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('★',x,y);
+}},
+{name:'+1 LIFE',color:'#f44',effect:()=>{lives=Math.min(lives+1,LEVELS[curLv].lives+2);},
+ draw:(c,x,y,s,t)=>{
+    // Beating heart
+    const beat=1+0.15*Math.sin(t*6);const sz=s*0.45*beat;
+    c.fillStyle=`rgba(255,50,50,${0.25*(0.5+0.5*Math.sin(t*6))})`;c.beginPath();c.arc(x,y,s*1.4,0,Math.PI*2);c.fill();
+    c.fillStyle='#f44';c.beginPath();
+    c.moveTo(x,y+sz*0.8);
+    c.bezierCurveTo(x-sz*1.5,y-sz*0.2,x-sz*0.8,y-sz*1.5,x,y-sz*0.5);
+    c.bezierCurveTo(x+sz*0.8,y-sz*1.5,x+sz*1.5,y-sz*0.2,x,y+sz*0.8);
+    c.closePath();c.fill();
+    c.fillStyle='rgba(255,180,180,0.5)';c.beginPath();
+    c.arc(x-sz*0.35,y-sz*0.35,sz*0.25,0,Math.PI*2);c.fill();
+}},
+{name:'SLOW',color:'#a0f',effect:()=>{for(const e of enemies)e.origSpeed=e.speed,e.speed*=0.5;},
+ draw:(c,x,y,s,t)=>{
+    // Hourglass / time warp
+    const rot=t*2;
+    c.fillStyle=`rgba(170,0,255,${0.2*(0.6+0.4*Math.sin(t*3))})`;c.beginPath();c.arc(x,y,s*1.4,0,Math.PI*2);c.fill();
+    c.save();c.translate(x,y);c.rotate(Math.sin(rot*0.5)*0.15);
+    // Hourglass body
+    c.fillStyle='#a0f';c.beginPath();
+    c.moveTo(-s*0.3,-s*0.5);c.lineTo(s*0.3,-s*0.5);c.lineTo(s*0.05,0);
+    c.lineTo(s*0.3,s*0.5);c.lineTo(-s*0.3,s*0.5);c.lineTo(-s*0.05,0);c.closePath();c.fill();
+    // Sand
+    c.fillStyle='rgba(255,200,255,0.6)';c.fillRect(-s*0.15,s*0.1,s*0.3,s*0.25);
+    // Frame lines
+    c.strokeStyle='#c8f';c.lineWidth=2;
+    c.beginPath();c.moveTo(-s*0.35,-s*0.5);c.lineTo(s*0.35,-s*0.5);c.stroke();
+    c.beginPath();c.moveTo(-s*0.35,s*0.5);c.lineTo(s*0.35,s*0.5);c.stroke();
+    c.restore();
+    // Orbiting particles
+    for(let i=0;i<3;i++){const a=rot+i*Math.PI*2/3;
+    c.fillStyle='rgba(200,150,255,0.6)';c.beginPath();c.arc(x+Math.cos(a)*s*0.7,y+Math.sin(a)*s*0.7,2,0,Math.PI*2);c.fill();}
+}},
 ];
 
 // ===== INPUT =====
@@ -323,7 +384,7 @@ function claimT(){
     if(cNow>20&&Math.random()<0.35)spawnPow();
 }
 function spawnPow(){let px,py,tries=0;do{px=2+Math.floor(Math.random()*(COLS-4));py=2+Math.floor(Math.random()*(ROWS-4));tries++;}while(grid[py][px]!==EMPTY&&tries<50);if(tries>=50)return;powerups.push({x:px,y:py,type:PTYPE[Math.floor(Math.random()*PTYPE.length)],t:0});}
-function checkPow(){for(let i=powerups.length-1;i>=0;i--){const p=powerups[i];if(player.x===p.x&&player.y===p.y){sfxPow();addFT(p.x*CELL+CELL/2,p.y*CELL-8,p.type.name,'#ff0',10);sp(p.x*CELL+CELL/2,p.y*CELL+CELL/2,p.type.color,15,40,0.4);p.type.effect();powerups.splice(i,1);}}}
+function checkPow(){for(let i=powerups.length-1;i>=0;i--){const p=powerups[i];const dx=player.x-p.x,dy=player.y-p.y;if(dx*dx+dy*dy<=PICKUP_RADIUS*PICKUP_RADIUS){sfxPow();addFT(p.x*CELL+CELL/2,p.y*CELL-8,p.type.name,'#ff0',10);sp(p.x*CELL+CELL/2,p.y*CELL+CELL/2,p.type.color,15,40,0.4);p.type.effect();powerups.splice(i,1);}}}
 
 // ===== PLAYER =====
 function initP(){player={x:Math.floor(COLS/2),y:0,vx:Math.floor(COLS/2),vy:0,mt:0,cutting:false,dir:'none'};trail=[];inputDir='none';playerSpeed=8;trailSpeed=6;shieldTimer=0;}
@@ -560,19 +621,21 @@ function render(time){
         c.lineCap='butt';c.lineJoin='miter';
     }
 
-    // Power-ups with icons
+    // Power-ups — drawn icons with pickup radius
     for(const p of powerups){p.t+=0.016;const px=p.x*CELL+CELL/2,py=p.y*CELL+CELL/2,bob=Math.sin(p.t*3)*3;
-    const pulse=0.7+0.3*Math.sin(p.t*5);
-    // Outer glow
-    c.beginPath();c.arc(px,py+bob,CELL*1.2,0,Math.PI*2);c.fillStyle=p.type.color+'15';c.fill();
-    // Background circle
-    c.beginPath();c.arc(px,py+bob,CELL*0.8,0,Math.PI*2);c.fillStyle='rgba(0,0,20,0.8)';c.fill();
-    c.strokeStyle=p.type.color;c.lineWidth=1.5*pulse;c.stroke();
-    // Icon text
-    c.fillStyle=p.type.color;c.font='bold '+Math.max(8,CELL*0.7)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-    c.fillText(p.type.icon,px,py+bob);
-    // Label below
-    c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.fillText(p.type.name,px,py+bob+CELL*1.2);}
+    const iconSz=Math.max(12,CELL*1.8);
+    // Pickup radius ring (dashed, shows collection zone)
+    const radPx=PICKUP_RADIUS*CELL;
+    const pdx=player.x-p.x,pdy=player.y-p.y,pDist=Math.sqrt(pdx*pdx+pdy*pdy);
+    const nearAlpha=pDist<PICKUP_RADIUS*2?0.3+0.2*Math.sin(p.t*8):0.12;
+    c.setLineDash([4,4]);c.strokeStyle=p.type.color;c.globalAlpha=nearAlpha;c.lineWidth=1;
+    c.beginPath();c.arc(px,py+bob,radPx,0,Math.PI*2);c.stroke();
+    c.setLineDash([]);c.globalAlpha=1;
+    // Draw the icon
+    p.type.draw(c,px,py+bob,iconSz,p.t);
+    // Label
+    c.fillStyle=p.type.color;c.font=Math.max(6,CELL*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText(p.type.name,px,py+bob+iconSz*0.7);}
 
     // Enemies
     for(const e of enemies){const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2;
