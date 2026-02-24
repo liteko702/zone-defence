@@ -807,7 +807,7 @@ let dD=null;
 // Map swipe: galaxy view = switch galaxies, constellation view = swipe right to go back
 let mapSwSx=0,mapSwId=null;
 cv.addEventListener('touchstart',e=>{if(state==='map'){const t=e.changedTouches[0];mapSwSx=t.clientX;mapSwId=t.identifier;}},{passive:true});
-cv.addEventListener('touchend',e=>{if(state==='map'){for(const t of e.changedTouches){if(t.identifier===mapSwId){const dx=t.clientX-mapSwSx;if(Math.abs(dx)>50){if(mapMode==='galaxy')switchGalaxy(dx<0?1:-1);else if(dx>0)zoomOutToGalaxy();}mapSwId=null;}}}},{passive:true});
+cv.addEventListener('touchend',e=>{if(state==='map'&&mapMode!=='zooming_in'&&mapMode!=='zooming_out'){for(const t of e.changedTouches){if(t.identifier===mapSwId){const dx=t.clientX-mapSwSx;if(Math.abs(dx)>50){if(mapMode==='galaxy')switchGalaxy(dx<0?1:-1);else if(dx>0)zoomOutToGalaxy();}mapSwId=null;}}}},{passive:true});
 
 // Swipe controls on canvas — swipe to set direction, tap to stop
 let swSx=0,swSy=0,swId=null;
@@ -1520,13 +1520,16 @@ function render(time){
 let mSel=0;
 
 // === ZOOMABLE STAR CHART ===
-// Two zoom levels: 'galaxy' (wide view, all constellations) and 'constellation' (zoomed into one)
-let mapMode='galaxy'; // 'galaxy' or 'constellation'
+// Modes: 'galaxy', 'zooming_in', 'constellation', 'zooming_out'
+let mapMode='galaxy';
 let mapGalaxy=0;
-let mapSelConstellation=-1; // which constellation is selected in galaxy view (index into UNIVERSES[].constellations)
+let mapSelConstellation=-1;
 let mapZoom=1,mapZoomTarget=1;
 let mapCamX=0,mapCamY=0,mapCamTargetX=0,mapCamTargetY=0;
 let mapLastTime=0;
+let mapTransT=0; // transition progress 0→1
+let mapTransDir=0; // 1=zooming in, -1=zooming out
+let mapTransCx=0,mapTransCy=0; // center point of zoom target
 
 // Enemy type display names
 const ETYPE_NAMES={bounce:'PATROL',chase:'HUNTER',phase:'PHASE',tracer:'TRACER',shield:'ARMOR',orbit:'ORBIT',split:'SPLIT',boss:'BOSS'};
@@ -1838,24 +1841,71 @@ function renderBossView(time,bossLi){
     }
 }
 
+function easeInOut(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;} // smooth ease
+
 function renderMap(time){
     const dt=Math.min(50,(time-(mapLastTime||time)))/1000;mapLastTime=time;
     drawBg(time);
 
-    // Smooth camera
+    // Handle zoom transitions
+    if(mapMode==='zooming_in'||mapMode==='zooming_out'){
+        mapTransT+=dt*2.2; // ~0.45s transition
+        if(mapTransT>=1){
+            mapTransT=1;
+            if(mapMode==='zooming_in'){mapMode='constellation';mapZoom=1;mapCamX=0;mapCamY=0;}
+            else{mapMode='galaxy';mapZoom=1;mapCamX=0;mapCamY=0;}
+        }
+    }
+
+    // Smooth camera lerp
     mapZoom+=(mapZoomTarget-mapZoom)*Math.min(1,dt*5);
     mapCamX+=(mapCamTargetX-mapCamX)*Math.min(1,dt*5);
     mapCamY+=(mapCamTargetY-mapCamY)*Math.min(1,dt*5);
 
     c.save();
-    c.translate(W/2,H/2);c.scale(mapZoom,mapZoom);c.translate(-W/2+mapCamX,-H/2+mapCamY);
 
-    if(mapMode==='galaxy')renderGalaxyView(time);
-    else renderConstellationView(time);
+    if(mapMode==='zooming_in'){
+        // Zoom from galaxy view into constellation
+        const t=easeInOut(mapTransT);
+        const z=1+t*2.5; // zoom from 1x to 3.5x
+        const panX=(W/2-mapTransCx)*t*2;
+        const panY=(H/2-mapTransCy)*t*2;
+        c.translate(W/2,H/2);c.scale(z,z);c.translate(-W/2+panX,-H/2+panY);
+        // Fade out galaxy, crossfade
+        c.globalAlpha=1-t*0.7;
+        renderGalaxyView(time);
+        c.globalAlpha=1;
+    }else if(mapMode==='zooming_out'){
+        // Zoom out from constellation back to galaxy
+        const t=easeInOut(mapTransT);
+        const z=3.5-t*2.5; // zoom from 3.5x back to 1x
+        const panX=(W/2-mapTransCx)*(1-t)*2;
+        const panY=(H/2-mapTransCy)*(1-t)*2;
+        c.translate(W/2,H/2);c.scale(z,z);c.translate(-W/2+panX,-H/2+panY);
+        c.globalAlpha=1-t*0.3;
+        renderConstellationView(time);
+        // Fade in galaxy
+        if(t>0.5){c.globalAlpha=(t-0.5)*2;renderGalaxyView(time);}
+        c.globalAlpha=1;
+    }else{
+        c.translate(W/2,H/2);c.scale(mapZoom,mapZoom);c.translate(-W/2+mapCamX,-H/2+mapCamY);
+        if(mapMode==='galaxy')renderGalaxyView(time);
+        else renderConstellationView(time);
+    }
 
     c.restore();
 
-    // === BOTTOM BAR ===
+    // During transitions, show a subtle vignette
+    if(mapMode==='zooming_in'||mapMode==='zooming_out'){
+        const t=easeInOut(mapTransT);
+        const vAlpha=Math.sin(t*Math.PI)*0.3; // peaks in middle
+        const vg=c.createRadialGradient(W/2,H/2,Math.min(W,H)*0.2,W/2,H/2,Math.max(W,H)*0.7);
+        vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,`rgba(0,0,40,${vAlpha})`);
+        c.fillStyle=vg;c.fillRect(0,0,W,H);
+    }
+
+    // === BOTTOM BAR === (hide during transitions)
+    if(mapMode==='zooming_in'||mapMode==='zooming_out'){drP();drawScanlines();return;}
     const barH=Math.max(36,H*0.08);
     const barY=H-barH;
     c.fillStyle='rgba(0,0,20,0.9)';c.fillRect(0,barY,W,barH);
@@ -1923,9 +1973,12 @@ function switchGalaxy(dir){
 function zoomIntoConstellation(j){
     mapSelConstellation=j;
     mapSelStar=0;
-    mapMode='constellation';
-    mapZoomTarget=1;mapCamTargetX=0;mapCamTargetY=0;
-    // Find first unlocked star in this constellation
+    // Find center of the selected constellation for zoom target
+    const gn=renderMap._galaxyNodes;
+    if(gn&&gn[j]){mapTransCx=gn[j].x;mapTransCy=gn[j].y;}
+    else{mapTransCx=W/2;mapTransCy=H/2;}
+    mapTransT=0;mapMode='zooming_in';
+    // Find first unlocked star
     const cstList=getUniverseConstellations(mapGalaxy);
     if(j<cstList.length){
         const cstLevels=getConstellationLevels(cstList[j].key,mapGalaxy);
@@ -1937,14 +1990,18 @@ function zoomIntoConstellation(j){
 }
 
 function zoomOutToGalaxy(){
-    mapMode='galaxy';
-    mapZoomTarget=1;mapCamTargetX=0;mapCamTargetY=0;
+    // Find center of current constellation for zoom-out origin
+    const gn=renderMap._galaxyNodes;
+    if(gn&&gn[mapSelConstellation]){mapTransCx=gn[mapSelConstellation].x;mapTransCy=gn[mapSelConstellation].y;}
+    else{mapTransCx=W/2;mapTransCy=H/2;}
+    mapTransT=0;mapMode='zooming_out';
     sfxSel();
 }
 
 // Map click handler
 cv.addEventListener('click',e=>{
     if(state!=='map')return;
+    if(mapMode==='zooming_in'||mapMode==='zooming_out')return; // ignore during transitions
     const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
     const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
 
@@ -1992,6 +2049,7 @@ cv.addEventListener('click',e=>{
 
 // Keyboard controls
 addEventListener('keydown',e=>{if(state!=='map')return;
+    if(mapMode==='zooming_in'||mapMode==='zooming_out')return;
     if(mapMode==='galaxy'){
         if(e.key==='ArrowLeft'||e.key==='a')switchGalaxy(-1);
         if(e.key==='ArrowRight'||e.key==='d')switchGalaxy(1);
