@@ -57,14 +57,15 @@
 <div id="ui" class="on">
     <div class="scr v" id="s-title">
         <h1>ZONE DEFENCE</h1>
-        <p>PILOT YOUR SHIP THROUGH SPACE<br><br>CLAIM TERRITORY BY CUTTING THROUGH THE VOID AND RETURNING TO BORDER<br><br>AVOID ENEMIES!<br>COLLECT POWER-UPS!</p>
+        <p>PILOT YOUR SHIP ACROSS THE CONSTELLATIONS<br><br>CLAIM TERRITORY BY CUTTING THROUGH THE VOID<br><br>SHOOT ENEMIES · CAPTURE THEM IN ZONES<br>COLLECT POWER-UPS!</p>
         <button class="b bg" id="b-play" style="padding:14px 36px" onclick="window._playClick&&window._playClick()">▶ PLAY</button>
         <button class="b" id="b-how">? HOW TO PLAY</button>
     </div>
     <div class="scr" id="s-how">
         <h2>HOW TO PLAY</h2>
-        <p>1. MOVE ALONG THE BORDER<br><br>2. GO INTO EMPTY SPACE TO DRAW A LINE<br><br>3. RETURN TO BORDER TO CLAIM TERRITORY<br><br>4. DON'T LET ENEMIES HIT YOUR TRAIL!<br><br>5. CLAIM ENOUGH % TO CLEAR SECTOR</p>
-        <p style="color:#ff0">POWER-UPS:<br>SPEED · SHIELD · LIFE · SLOW</p>
+        <p>1. MOVE ALONG THE BORDER<br><br>2. GO INTO THE VOID TO DRAW A LINE<br><br>3. RETURN TO BORDER TO CLAIM TERRITORY<br><br>4. YOUR SHIP AUTO-FIRES FORWARD!<br><br>5. ENCLOSE ENEMIES TO CAPTURE THEM (+500)<br><br>6. CLAIM ENOUGH % TO CLEAR EACH CONSTELLATION</p>
+        <p style="color:#ff0">POWER-UPS: SPEED · SHIELD · LIFE · SLOW</p>
+        <p style="color:#f80">ENEMIES: PATROL · HUNTER · PHASE<br>TRACER · ARMOR · ORBIT · SPLIT</p>
         <button class="b bg" id="b-how-ok">GOT IT!</button>
     </div>
     <div class="scr" id="s-lvl"><h2 id="l-title">SECTOR 1</h2><p id="l-desc"></p><button class="b bg" id="b-go">▶ ENGAGE</button></div>
@@ -105,20 +106,95 @@ window.addEventListener('resize',()=>{resize();});
 const EMPTY=0,BORDER=1,CLAIMED=2,TRAIL=3;
 const DIR={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0],none:[0,0]};
 
-// ===== LEVELS =====
+// ===== CONSTELLATIONS (star patterns for background) =====
+const CONSTELLATIONS={
+// Normalized 0-1 coordinates + connections
+orion:{stars:[[.5,.05],[.35,.2],[.65,.2],[.3,.4],[.5,.4],[.7,.4],[.25,.55],[.5,.55],[.75,.55],[.4,.75],[.6,.75],[.35,.95],[.65,.95]],
+  lines:[[0,1],[0,2],[1,3],[2,5],[3,4],[4,5],[3,6],[5,8],[6,7],[7,8],[6,9],[8,10],[9,11],[10,12]]},
+lyra:{stars:[[.5,.1],[.3,.3],[.7,.3],[.25,.55],[.75,.55],[.5,.8]],
+  lines:[[0,1],[0,2],[1,3],[2,4],[3,5],[4,5],[1,2]]},
+cassiopeia:{stars:[[.15,.5],[.3,.2],[.5,.45],[.7,.15],[.85,.45]],
+  lines:[[0,1],[1,2],[2,3],[3,4]]},
+cygnus:{stars:[[.5,.1],[.5,.35],[.2,.5],[.8,.5],[.5,.6],[.5,.9]],
+  lines:[[0,1],[1,4],[4,5],[2,1],[1,3]]},
+scorpius:{stars:[[.2,.1],[.25,.25],[.3,.4],[.35,.5],[.4,.6],[.5,.7],[.6,.75],[.7,.7],[.75,.6],[.8,.55],[.85,.65],[.9,.8]],
+  lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11]]},
+leo:{stars:[[.3,.2],[.2,.35],[.35,.4],[.5,.3],[.65,.2],[.7,.35],[.8,.5],[.6,.6],[.45,.7]],
+  lines:[[0,1],[1,2],[2,0],[0,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,2]]},
+gemini:{stars:[[.3,.1],[.6,.1],[.25,.3],[.55,.3],[.2,.5],[.5,.5],[.3,.7],[.6,.7],[.35,.9],[.55,.9]],
+  lines:[[0,2],[2,4],[4,6],[6,8],[1,3],[3,5],[5,7],[7,9],[4,5]]},
+draco:{stars:[[.7,.1],[.6,.2],[.45,.2],[.35,.3],[.3,.45],[.4,.55],[.55,.5],[.65,.55],[.6,.7],[.45,.75],[.35,.85],[.5,.9]],
+  lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11]]},
+perseus:{stars:[[.5,.05],[.45,.2],[.4,.35],[.35,.5],[.3,.65],[.55,.4],[.65,.5],[.7,.35]],
+  lines:[[0,1],[1,2],[2,3],[3,4],[2,5],[5,6],[5,7]]},
+aquila:{stars:[[.5,.1],[.35,.3],[.65,.3],[.5,.45],[.3,.6],[.7,.6],[.5,.8]],
+  lines:[[0,3],[1,3],[2,3],[3,6],[4,3],[5,3]]},
+sagittarius:{stars:[[.3,.2],[.4,.3],[.5,.2],[.6,.35],[.5,.5],[.35,.55],[.7,.5],[.55,.7],[.45,.75],[.65,.8]],
+  lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,1],[3,6],[4,7],[7,8],[7,9]]},
+phoenix:{stars:[[.5,.1],[.35,.3],[.65,.3],[.2,.5],[.8,.5],[.3,.7],[.7,.7],[.5,.85]],
+  lines:[[0,1],[0,2],[1,3],[2,4],[3,5],[4,6],[5,7],[6,7]]},
+};
+
+// ===== ENEMY TYPES =====
+// bounce=standard bouncer, chase=follows player, plus new types:
+// phase=teleports periodically, split=splits into 2 when hit by bullet,
+// shield=needs 2 bullet hits, orbit=circles the unclaimed area edges
+// tracer=follows your trail path
+
+// ===== LEVELS — 12 constellation-themed levels in 3 galaxies =====
+const GALAXIES=[
+  {name:'INNER RIM',color:'#0af',levels:[0,1,2,3]},
+  {name:'DEEP VOID',color:'#a0f',levels:[4,5,6,7]},
+  {name:'OUTER REACH',color:'#f80',levels:[8,9,10,11]},
+];
 const LEVELS=[
-{name:"SECTOR 1",desc:"ONE PATROL DRONE.\nLEARN THE BASICS.",enemies:[{speed:3,bounce:true}],lives:3,target:75,color:'#0af'},
-{name:"SECTOR 2",desc:"TWO DRONES.\nWATCH YOUR TRAIL!",enemies:[{speed:3.5,bounce:true},{speed:3.5,bounce:true}],lives:3,target:75,color:'#0fa'},
-{name:"SECTOR 3",desc:"A HUNTER LOCKS ON!",enemies:[{speed:3,bounce:true},{speed:2.5,chase:true}],lives:3,target:75,color:'#a0f'},
-{name:"SECTOR 4",desc:"SWARM INCOMING.\nPLAN YOUR CUTS.",enemies:[{speed:4,bounce:true},{speed:4,bounce:true},{speed:3.5,bounce:true},{speed:2.8,chase:true}],lives:3,target:80,color:'#fa0'},
-{name:"SECTOR 5",desc:"FAST HOSTILES.\nCLAIM 80%.",enemies:[{speed:5,bounce:true},{speed:5,bounce:true},{speed:4.5,bounce:true},{speed:3.5,chase:true},{speed:3.5,chase:true}],lives:4,target:80,color:'#f0a'},
-{name:"SECTOR 6",desc:"THE GAUNTLET!\nCLAIM 85%!",enemies:[{speed:5.5,bounce:true},{speed:5.5,bounce:true},{speed:5,bounce:true},{speed:5,bounce:true},{speed:4,chase:true},{speed:3.5,chase:true}],lives:5,target:85,color:'#ff0',boss:true},
+// === GALAXY 1: INNER RIM ===
+{name:"ORION",constellation:'orion',galaxy:0,
+ desc:"THE HUNTER.\nONE PATROL DRONE.\nLEARN THE BASICS.",
+ enemies:[{speed:3,type:'bounce'}],lives:3,target:75,color:'#6cf'},
+{name:"LYRA",constellation:'lyra',galaxy:0,
+ desc:"THE HARP.\nTWO DRONES.\nWATCH YOUR TRAIL!",
+ enemies:[{speed:3.5,type:'bounce'},{speed:3.5,type:'bounce'}],lives:3,target:75,color:'#0fa'},
+{name:"CASSIOPEIA",constellation:'cassiopeia',galaxy:0,
+ desc:"THE QUEEN.\nA HUNTER LOCKS ON!",
+ enemies:[{speed:3,type:'bounce'},{speed:2.5,type:'chase'}],lives:3,target:75,color:'#a8f'},
+{name:"CYGNUS",constellation:'cygnus',galaxy:0,
+ desc:"THE SWAN.\nPHASE SHIFTER APPEARS!\nIT TELEPORTS AROUND.",
+ enemies:[{speed:3.5,type:'bounce'},{speed:3,type:'bounce'},{speed:2,type:'phase'}],lives:3,target:75,color:'#0ff'},
+
+// === GALAXY 2: DEEP VOID ===
+{name:"SCORPIUS",constellation:'scorpius',galaxy:1,
+ desc:"THE SCORPION.\nTRACER FOLLOWS YOUR PATH!\nDON'T DOUBLE BACK.",
+ enemies:[{speed:4,type:'bounce'},{speed:3.5,type:'bounce'},{speed:2.5,type:'tracer'}],lives:3,target:75,color:'#f44'},
+{name:"LEO",constellation:'leo',galaxy:1,
+ desc:"THE LION.\nSHIELDED ENEMIES!\nSHOOT THEM TWICE.",
+ enemies:[{speed:4,type:'bounce'},{speed:3,type:'chase'},{speed:3,type:'shield'}],lives:4,target:78,color:'#fa0'},
+{name:"GEMINI",constellation:'gemini',galaxy:1,
+ desc:"THE TWINS.\nSPLITTERS DIVIDE\nWHEN SHOT!",
+ enemies:[{speed:4.5,type:'bounce'},{speed:3.5,type:'chase'},{speed:3,type:'split'}],lives:4,target:78,color:'#ff0'},
+{name:"DRACO",constellation:'draco',galaxy:1,
+ desc:"THE DRAGON.\nORBITERS PATROL\nTHE EDGES!",
+ enemies:[{speed:4.5,type:'bounce'},{speed:4,type:'bounce'},{speed:3,type:'chase'},{speed:2.5,type:'orbit'}],lives:4,target:80,color:'#8f0'},
+
+// === GALAXY 3: OUTER REACH ===
+{name:"PERSEUS",constellation:'perseus',galaxy:2,
+ desc:"THE HERO.\nALL ENEMY TYPES!\nSTAY SHARP.",
+ enemies:[{speed:5,type:'bounce'},{speed:4,type:'chase'},{speed:3,type:'phase'},{speed:3,type:'tracer'}],lives:4,target:78,color:'#f8a'},
+{name:"AQUILA",constellation:'aquila',galaxy:2,
+ desc:"THE EAGLE.\nFAST SWARM!\nCLAIM 80%.",
+ enemies:[{speed:5.5,type:'bounce'},{speed:5,type:'bounce'},{speed:4.5,type:'bounce'},{speed:3.5,type:'chase'},{speed:3,type:'shield'}],lives:4,target:80,color:'#4af'},
+{name:"SAGITTARIUS",constellation:'sagittarius',galaxy:2,
+ desc:"THE ARCHER.\nSPLIT SWARM!\nSHOOT TO SURVIVE.",
+ enemies:[{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:3.5,type:'split'},{speed:3.5,type:'split'},{speed:3,type:'phase'}],lives:5,target:80,color:'#f4a'},
+{name:"PHOENIX",constellation:'phoenix',galaxy:2,
+ desc:"THE FIREBIRD.\nULTIMATE CHALLENGE!\nCLAIM 85%!",
+ enemies:[{speed:5.5,type:'bounce'},{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:4,type:'chase'},{speed:3.5,type:'phase'},{speed:3,type:'shield'},{speed:3,type:'orbit'}],lives:5,target:85,color:'#ff0',boss:true},
 ];
 
 // ===== SAVE =====
 let save={hi:0,unlocked:1,stars:[],scores:[]};
-try{const d=JSON.parse(localStorage.getItem('zd4'));if(d)save=d;}catch(e){}
-function writeS(){try{localStorage.setItem('zd4',JSON.stringify(save));}catch(e){}}
+try{const d=JSON.parse(localStorage.getItem('zd5'));if(d)save=d;}catch(e){}
+function writeS(){try{localStorage.setItem('zd5',JSON.stringify(save));}catch(e){}}
 
 // ===== STARFIELD =====
 const stars=[];for(let i=0;i<300;i++)stars.push({xp:Math.random(),yp:Math.random(),s:Math.random()*2+0.5,b:Math.random(),t:1+Math.random()*3});
@@ -184,6 +260,9 @@ function sfxMove(){beep(880,0.02,'square',0.012);}
 function sfxWarp(){for(let i=0;i<6;i++)setTimeout(()=>beep(400+i*80,0.1,'square',0.05),i*50);}
 function sfxSel(){beep(660,0.06);setTimeout(()=>beep(880,0.08),40);}
 function sfxPow(){beep(440,0.1,'sine',0.08);setTimeout(()=>beep(660,0.1,'sine',0.08),60);setTimeout(()=>beep(880,0.15,'sine',0.08),120);}
+function sfxShoot(){beep(1200,0.04,'square',0.03);setTimeout(()=>beep(800,0.03,'square',0.02),20);}
+function sfxHit(){beep(300,0.1,'sawtooth',0.06);setTimeout(()=>beep(500,0.08,'square',0.05),40);}
+function sfxCapture(){beep(600,0.15,'sine',0.08);setTimeout(()=>beep(800,0.15,'sine',0.08),80);setTimeout(()=>beep(1000,0.2,'sine',0.08),160);}
 
 // ===== GAME STATE =====
 let grid=[],player={},enemies=[],trail=[],curLv=0,lives=3,totalC=0,claimedC=0,score=0;
@@ -191,6 +270,10 @@ let state='title',prevSt='playing',deathT=0,inputDir='none',moveCt=0,cutsCt=0;
 gameReady=true;
 let shakeA=0,shakeD=0,claimAC=[],claimAT=0;
 let powerups=[],playerSpeed=8,trailSpeed=6,shieldTimer=0;
+let bullets=[],shootTimer=0;
+const SHOOT_INTERVAL=0.35; // auto-fire rate in seconds
+const BULLET_SPEED=18; // grid cells per second
+let captureKills=0; // enemies eliminated by enclosure
 
 const PICKUP_RADIUS=2; // grid cells — collect within 2 cells
 const PTYPE=[
@@ -382,6 +465,7 @@ function claimT(){
     // Auto-collect power-ups inside claimed territory
     for(let i=powerups.length-1;i>=0;i--){const p=powerups[i];if(grid[p.y]&&grid[p.y][p.x]===CLAIMED){sfxPow();addFT(p.x*CELL+CELL/2,p.y*CELL-8,p.type.name,'#ff0',10);sp(p.x*CELL+CELL/2,p.y*CELL+CELL/2,p.type.color,15,40,0.4);p.type.effect();powerups.splice(i,1);}}
     if(cNow>20&&Math.random()<0.35)spawnPow();
+    checkCaptureKills();
 }
 function spawnPow(){let px,py,tries=0;do{px=2+Math.floor(Math.random()*(COLS-4));py=2+Math.floor(Math.random()*(ROWS-4));tries++;}while(grid[py][px]!==EMPTY&&tries<50);if(tries>=50)return;powerups.push({x:px,y:py,type:PTYPE[Math.floor(Math.random()*PTYPE.length)],t:0});}
 function checkPow(){for(let i=powerups.length-1;i>=0;i--){const p=powerups[i];const dx=player.x-p.x,dy=player.y-p.y;if(dx*dx+dy*dy<=PICKUP_RADIUS*PICKUP_RADIUS){sfxPow();addFT(p.x*CELL+CELL/2,p.y*CELL-8,p.type.name,'#ff0',10);sp(p.x*CELL+CELL/2,p.y*CELL+CELL/2,p.type.color,15,40,0.4);p.type.effect();powerups.splice(i,1);}}}
@@ -446,14 +530,35 @@ function checkWin(){
     if(score>save.hi)save.hi=score;writeS();sfxWarp();
     state='won';
     if(curLv>=LEVELS.length-1){document.getElementById('c-sc').textContent='SCORE: '+score;showScr('s-done');}
-    else{document.getElementById('w-st').textContent='★'.repeat(st)+'☆'.repeat(3-st);document.getElementById('w-sc').textContent='SCORE: '+score;document.getElementById('w-info').innerHTML='TERRITORY: '+pct+'%<br>CUTS: '+cutsCt+' — RANK <span style="color:'+effCol+'">'+effRank+'</span> (+'+effBonus+')';showScr('s-win');}
+    else{
+        let info='TERRITORY: '+pct+'%<br>CUTS: '+cutsCt+' — RANK <span style="color:'+effCol+'">'+effRank+'</span> (+'+effBonus+')';
+        if(captureKills>0)info+='<br>CAPTURED: '+captureKills+' ENEMIES (+'+captureKills*500+')';
+        document.getElementById('w-st').textContent='★'.repeat(st)+'☆'.repeat(3-st);
+        document.getElementById('w-sc').textContent='SCORE: '+score;
+        document.getElementById('w-info').innerHTML=info;
+        // Galaxy transition check
+        const curGal=LEVELS[curLv].galaxy;
+        const nextGal=curLv+1<LEVELS.length?LEVELS[curLv+1].galaxy:null;
+        if(nextGal!==null&&nextGal!==curGal){
+            document.getElementById('w-info').innerHTML+=`<br><br><span style="color:${GALAXIES[nextGal].color}">★ ENTERING ${GALAXIES[nextGal].name} ★</span>`;
+        }
+        showScr('s-win');
+    }
 }
 
 // ===== ENEMIES =====
 function initE(lvl){
-    enemies=[];for(const ed of lvl.enemies){
+    enemies=[];bullets=[];captureKills=0;
+    for(const ed of lvl.enemies){
     let ex,ey;do{ex=3+Math.floor(Math.random()*(COLS-6));ey=3+Math.floor(Math.random()*(ROWS-6));}while(grid[ey][ex]!==EMPTY);
-    const a=Math.random()*Math.PI*2;enemies.push({x:ex,y:ey,fx:ex,fy:ey,dx:Math.cos(a),dy:Math.sin(a),speed:ed.speed,origSpeed:ed.speed,chase:ed.chase||false,rot:0});}
+    const a=Math.random()*Math.PI*2;
+    enemies.push({x:ex,y:ey,fx:ex,fy:ey,dx:Math.cos(a),dy:Math.sin(a),
+        speed:ed.speed,origSpeed:ed.speed,
+        type:ed.type||'bounce',chase:ed.type==='chase',
+        hp:ed.type==='shield'?2:1,
+        phaseTimer:3+Math.random()*4,
+        orbitAngle:Math.random()*Math.PI*2,
+        rot:0,stuckT:0});}
 }
 function relocateE(e){
     // Teleport enemy to random EMPTY cell far from player
@@ -483,21 +588,137 @@ function isTrapped(e){
 }
 function moveE(dt){
     for(const e of enemies){
+        if(e.dead)continue;
         if(e.speed<e.origSpeed)e.speed=Math.min(e.speed+dt*0.5,e.origSpeed);
-        // Check if trapped in claimed territory
-        if(!e.stuckT)e.stuckT=0;
+        // Check if trapped
         if(isTrapped(e)){e.stuckT+=dt;if(e.stuckT>0.5){relocateE(e);e.stuckT=0;continue;}}else e.stuckT=0;
-        if(e.chase){const px=player.x-e.x,py=player.y-e.y,d=Math.sqrt(px*px+py*py)||1;e.dx=px/d;e.dy=py/d;}
-        e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+
+        // Type-specific movement
+        if(e.type==='phase'){
+            e.phaseTimer-=dt;
+            if(e.phaseTimer<=0){
+                // Teleport to random empty cell
+                sp(e.fx*CELL+CELL/2,e.fy*CELL+CELL/2,'#f0f',15,40,0.3);
+                relocateE(e);e.phaseTimer=2.5+Math.random()*3;
+                sp(e.fx*CELL+CELL/2,e.fy*CELL+CELL/2,'#f0f',15,40,0.3);
+            }
+            // Phase enemies also bounce
+            e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+        }else if(e.type==='chase'){
+            const px=player.x-e.x,py=player.y-e.y,d=Math.sqrt(px*px+py*py)||1;
+            e.dx=px/d;e.dy=py/d;
+            e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+        }else if(e.type==='tracer'){
+            // Follow the player's trail
+            if(trail.length>0){
+                const tgt=trail[0];
+                const tdx=tgt.x-e.fx,tdy=tgt.y-e.fy,td=Math.sqrt(tdx*tdx+tdy*tdy)||1;
+                e.dx=tdx/td;e.dy=tdy/td;
+            }else{
+                // No trail, chase player slowly
+                const px=player.x-e.x,py=player.y-e.y,d=Math.sqrt(px*px+py*py)||1;
+                e.dx=px/d;e.dy=py/d;
+            }
+            e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+        }else if(e.type==='orbit'){
+            // Circle around the border of unclaimed area
+            e.orbitAngle+=e.speed*0.04*dt;
+            const cx=COLS/2,cy=ROWS/2,rx=(COLS-4)*0.4,ry=(ROWS-4)*0.4;
+            const tx=cx+Math.cos(e.orbitAngle)*rx,ty=cy+Math.sin(e.orbitAngle)*ry;
+            const odx=tx-e.fx,ody=ty-e.fy;
+            e.fx+=odx*3*dt;e.fy+=ody*3*dt;
+            e.dx=odx;e.dy=ody;
+        }else{
+            // Standard bounce
+            e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+        }
+
         const nx=Math.round(e.fx),ny=Math.round(e.fy),cc=cAt(nx,ny);
         if(cc===BORDER||cc===CLAIMED||nx<1||nx>=COLS-1||ny<1||ny>=ROWS-1){
-            if(e.chase){e.fx-=e.dx*e.speed*dt;e.fy-=e.dy*e.speed*dt;e.dx+=(Math.random()-0.5)*0.5;e.dy+=(Math.random()-0.5)*0.5;}
-            else{e.fx-=e.dx*e.speed*dt*2;e.fy-=e.dy*e.speed*dt*2;const tx=cAt(Math.round(e.fx+e.dx*0.5),Math.round(e.fy)),ty=cAt(Math.round(e.fx),Math.round(e.fy+e.dy*0.5));if(tx===BORDER||tx===CLAIMED)e.dx=-e.dx;if(ty===BORDER||ty===CLAIMED)e.dy=-e.dy;e.dx+=(Math.random()-0.5)*0.2;e.dy+=(Math.random()-0.5)*0.2;}
+            if(e.type==='chase'||e.type==='tracer'){
+                e.fx-=e.dx*e.speed*dt;e.fy-=e.dy*e.speed*dt;
+                e.dx+=(Math.random()-0.5)*0.5;e.dy+=(Math.random()-0.5)*0.5;
+            }else if(e.type!=='orbit'){
+                e.fx-=e.dx*e.speed*dt*2;e.fy-=e.dy*e.speed*dt*2;
+                const tx2=cAt(Math.round(e.fx+e.dx*0.5),Math.round(e.fy));
+                const ty2=cAt(Math.round(e.fx),Math.round(e.fy+e.dy*0.5));
+                if(tx2===BORDER||tx2===CLAIMED)e.dx=-e.dx;
+                if(ty2===BORDER||ty2===CLAIMED)e.dy=-e.dy;
+                e.dx+=(Math.random()-0.5)*0.2;e.dy+=(Math.random()-0.5)*0.2;
+            }
             const len=Math.sqrt(e.dx*e.dx+e.dy*e.dy)||1;e.dx/=len;e.dy/=len;
         }
         e.x=Math.round(e.fx);e.y=Math.round(e.fy);e.rot=Math.atan2(e.dy,e.dx);
         if(cAt(e.x,e.y)===TRAIL){killP();return;}
-        if(player.cutting){const px=player.x-e.fx,py=player.y-e.fy;if(px*px+py*py<1.5){killP();return;}}
+        if(player.cutting){const px2=player.x-e.fx,py2=player.y-e.fy;if(px2*px2+py2*py2<1.5){killP();return;}}
+    }
+    // Remove dead enemies
+    for(let i=enemies.length-1;i>=0;i--)if(enemies[i].dead)enemies.splice(i,1);
+}
+
+// ===== AUTO-SHOOT =====
+function updateBullets(dt){
+    // Auto-fire when moving
+    shootTimer-=dt;
+    if(inputDir!=='none'&&shootTimer<=0&&state==='playing'){
+        const[dx,dy]=DIR[inputDir];
+        bullets.push({x:player.vx*CELL+CELL/2,y:player.vy*CELL+CELL/2+GRID_TOP,dx,dy,life:1.5});
+        shootTimer=SHOOT_INTERVAL;sfxShoot();
+    }
+    // Move bullets
+    for(let i=bullets.length-1;i>=0;i--){
+        const b=bullets[i];
+        b.x+=b.dx*BULLET_SPEED*CELL*dt;
+        b.y+=b.dy*BULLET_SPEED*CELL*dt;
+        b.life-=dt;
+        if(b.life<=0||b.x<0||b.x>W||b.y<0||b.y>H){bullets.splice(i,1);continue;}
+        // Check enemy hits
+        for(const e of enemies){
+            if(e.dead)continue;
+            const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2+GRID_TOP;
+            const hdx=b.x-ex,hdy=b.y-ey;
+            if(hdx*hdx+hdy*hdy<(CELL*1.5)**2){
+                e.hp--;
+                sp(ex,ey-GRID_TOP,'#fff',8,30,0.2);
+                sfxHit();
+                if(e.hp<=0){
+                    // Kill enemy
+                    if(e.type==='split'){
+                        // Spawn 2 smaller faster enemies
+                        for(let j=0;j<2;j++){
+                            const a=Math.random()*Math.PI*2;
+                            enemies.push({x:e.x,y:e.y,fx:e.fx+(Math.random()-0.5),fy:e.fy+(Math.random()-0.5),
+                                dx:Math.cos(a),dy:Math.sin(a),speed:e.speed*1.3,origSpeed:e.speed*1.3,
+                                type:'bounce',chase:false,hp:1,phaseTimer:0,orbitAngle:0,rot:0,stuckT:0});
+                        }
+                    }
+                    e.dead=true;score+=200;
+                    addFT(ex,ey-GRID_TOP-10,'+200','#ff0',9);
+                    sp(ex,ey-GRID_TOP,e.type==='shield'?'#ff0':'#f42',20,60,0.4);
+                }else{
+                    // Shield hit — flash
+                    addFT(ex,ey-GRID_TOP-10,'SHIELD HIT','#ff0',7);
+                }
+                bullets.splice(i,1);break;
+            }
+        }
+    }
+}
+
+// ===== CAPTURE KILLS — enemies enclosed by claim get eliminated =====
+function checkCaptureKills(){
+    // After a claim, check if any enemies are now in tiny areas
+    for(const e of enemies){
+        if(e.dead)continue;
+        const ex=Math.round(e.fx),ey=Math.round(e.fy);
+        if(cAt(ex,ey)===CLAIMED){
+            // Enemy is inside claimed territory — captured!
+            e.dead=true;captureKills++;score+=500;
+            sfxCapture();
+            const px=e.fx*CELL+CELL/2,py=e.fy*CELL+CELL/2;
+            addFT(px,py-10,'CAPTURED! +500','#0ff',11);
+            sp(px,py,'#0ff',25,60,0.5);
+        }
     }
 }
 
@@ -580,6 +801,24 @@ function drawEnemy(ex,ey,rot,chase,time){
 function render(time){
     c.save();if(shakeD>0)c.translate((Math.random()-0.5)*shakeA*2,(Math.random()-0.5)*shakeA*2);
     drawBg(time);
+    // Draw constellation pattern in background
+    const cst=CONSTELLATIONS[LEVELS[curLv]?.constellation];
+    if(cst){
+        const cstAlpha=0.12+0.04*Math.sin(time*0.001);
+        c.globalAlpha=cstAlpha;
+        // Lines
+        c.strokeStyle=LEVELS[curLv].color||'#0af';c.lineWidth=1;
+        for(const[a,b]of cst.lines){
+            const sa=cst.stars[a],sb=cst.stars[b];
+            c.beginPath();c.moveTo(sa[0]*W,sa[1]*H);c.lineTo(sb[0]*W,sb[1]*H);c.stroke();
+        }
+        // Stars
+        for(const s of cst.stars){
+            c.fillStyle='#fff';c.beginPath();c.arc(s[0]*W,s[1]*H,3,0,Math.PI*2);c.fill();
+            c.fillStyle=LEVELS[curLv].color||'#0af';c.beginPath();c.arc(s[0]*W,s[1]*H,6,0,Math.PI*2);c.fill();
+        }
+        c.globalAlpha=1;
+    }
     c.save();c.translate(0,GRID_TOP); // offset grid below HUD
 
     // Grid — smooth modern look
@@ -638,9 +877,19 @@ function render(time){
     c.fillText(p.type.name,px,py+bob+iconSz*0.7);}
 
     // Enemies
-    for(const e of enemies){const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2;
-    if(Math.random()>0.6)sp(ex-Math.cos(e.rot)*4,ey-Math.sin(e.rot)*4,e.chase?'#f42':'#c4f',1,12,0.1);
-    drawEnemy(ex,ey,e.rot,e.chase,time);}
+    for(const e of enemies){if(e.dead)continue;const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2;
+    const ecol=e.type==='chase'?'#f42':e.type==='phase'?'#f0f':e.type==='tracer'?'#0f0':e.type==='shield'?'#ff0':e.type==='orbit'?'#0ff':e.type==='split'?'#fa0':'#c4f';
+    if(Math.random()>0.6)sp(ex-Math.cos(e.rot)*4,ey-Math.sin(e.rot)*4,ecol,1,12,0.1);
+    // Shield indicator
+    if(e.type==='shield'&&e.hp>1){c.strokeStyle='rgba(255,255,0,0.5)';c.lineWidth=2;c.beginPath();c.arc(ex,ey,CELL*1.5,0,Math.PI*2);c.stroke();}
+    // Phase shimmer
+    if(e.type==='phase'&&e.phaseTimer<1){c.globalAlpha=0.3+0.7*e.phaseTimer;}
+    drawEnemy(ex,ey,e.rot,e.type==='chase'||e.type==='tracer',time);
+    c.globalAlpha=1;
+    // Type label
+    if(e.type!=='bounce'){c.fillStyle=ecol;c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    const lbl=e.type==='phase'?'PHASE':e.type==='tracer'?'TRACE':e.type==='shield'?'ARMOR':e.type==='orbit'?'ORBIT':e.type==='split'?'SPLIT':'';
+    c.fillText(lbl,ex,ey+CELL*1.2);}}
 
     // Player (smooth position)
     if(state==='playing'||state==='dying'||state==='paused'){
@@ -649,6 +898,18 @@ function render(time){
         drawShip(px,py,rot,player.cutting,time);
         if(state==='playing'&&inputDir!=='none')sp(px-ddx*4,py-ddy*4,player.cutting?'#0fa':'#08f',1,12,0.1);
     }
+
+    // Bullets (render in grid space)
+    c.save();c.translate(0,-GRID_TOP);
+    for(const b of bullets){
+        const bx=b.x,by=b.y;
+        // Glow
+        c.fillStyle='rgba(255,200,50,0.3)';c.beginPath();c.arc(bx,by,CELL*0.6,0,Math.PI*2);c.fill();
+        // Core
+        c.fillStyle='#ff0';c.beginPath();c.arc(bx,by,CELL*0.25,0,Math.PI*2);c.fill();
+        c.fillStyle='#fff';c.beginPath();c.arc(bx,by,CELL*0.1,0,Math.PI*2);c.fill();
+    }
+    c.restore();
 
     drP();drFT();
     if(state==='dying'&&Math.sin(deathT*25)>0){c.fillStyle='rgba(255,30,0,0.12)';c.fillRect(0,0,W,H);}
@@ -668,23 +929,33 @@ function renderMap(time){
     drawBg(time);
     const fs=Math.max(10,Math.min(14,W*0.03));
     c.fillStyle='#0ff';c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText('SELECT SECTOR',W/2,16);
+    c.fillText('STAR CHART',W/2,16);
     c.fillStyle='#ff0';c.font=(fs*0.6)+'px "Press Start 2P"';
     c.fillText('HI-SCORE: '+save.hi,W/2,16+fs+6);
 
-    // Layout: nodes from bottom to top
-    const margin=60,nodeR=Math.max(18,Math.min(30,W*0.06));
+    // Layout: nodes from bottom to top, grouped by galaxy
+    const margin=60,nodeR=Math.max(14,Math.min(24,W*0.04));
     const topY=16+fs+6+fs*0.6+20;
     const botY=H-margin;
     const count=LEVELS.length;
 
-    // Calculate positions
+    // Calculate positions with galaxy grouping
     const nodes=[];
     for(let i=0;i<count;i++){
         const t=count>1?i/(count-1):0;
         const y=botY-t*(botY-topY);
         const x=W/2+Math.sin(i*1.1+0.5)*W*0.18;
         nodes.push({x,y,i});
+    }
+
+    // Draw galaxy labels
+    for(const g of GALAXIES){
+        const first=nodes[g.levels[0]],last=nodes[g.levels[g.levels.length-1]];
+        const gy=(first.y+last.y)/2;
+        c.fillStyle=g.color;c.globalAlpha=0.3;
+        c.font=Math.max(6,fs*0.4)+'px "Press Start 2P"';c.textAlign='right';
+        c.fillText(g.name,Math.min(first.x,last.x)-nodeR-15,gy);
+        c.globalAlpha=1;
     }
 
     // Path line
@@ -709,7 +980,13 @@ function renderMap(time){
             c.fillText(''+(i+1),n.x,n.y);
             // Selected ring
             if(sel){const sa=0.4+0.6*Math.sin(time*0.006);c.beginPath();c.arc(n.x,n.y,nodeR+5,0,Math.PI*2);c.strokeStyle=`rgba(0,255,200,${sa})`;c.lineWidth=2;c.stroke();
-            c.fillStyle='#fff';c.font=Math.max(7,nodeR*0.35)+'px "Press Start 2P"';c.textBaseline='bottom';c.fillText(lv.name,n.x,n.y-nodeR-10);}
+            c.fillStyle='#fff';c.font=Math.max(7,nodeR*0.35)+'px "Press Start 2P"';c.textBaseline='bottom';c.fillText('✦ '+lv.name+' ✦',n.x,n.y-nodeR-10);
+            // Draw mini constellation
+            const mcst=CONSTELLATIONS[lv.constellation];if(mcst){c.globalAlpha=0.4;c.strokeStyle=lv.color;c.lineWidth=0.5;
+            const mw=nodeR*3,mh=nodeR*3,mx=n.x-mw/2,my=n.y-nodeR-mh-20;
+            for(const[a2,b2]of mcst.lines){const sa2=mcst.stars[a2],sb2=mcst.stars[b2];c.beginPath();c.moveTo(mx+sa2[0]*mw,my+sa2[1]*mh);c.lineTo(mx+sb2[0]*mw,my+sb2[1]*mh);c.stroke();}
+            for(const s2 of mcst.stars){c.fillStyle='#fff';c.beginPath();c.arc(mx+s2[0]*mw,my+s2[1]*mh,1.5,0,Math.PI*2);c.fill();}
+            c.globalAlpha=1;}}
         }else{
             // Locked — visible grey
             c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle='#222238';c.fill();
@@ -750,12 +1027,12 @@ function updateHUD(){document.getElementById('h-lv').textContent=''+(curLv+1);do
 function pauseG(){prevSt=state;state='paused';document.getElementById('pov').classList.add('v');}
 function resumeG(){state=prevSt;document.getElementById('pov').classList.remove('v');}
 
-function reinitLevel(){initG();initP();initE(LEVELS[curLv]);powerups=[];}
+function reinitLevel(){initG();initP();initE(LEVELS[curLv]);powerups=[];bullets=[];}
 
 function startLv(i){
     curLv=i;const lv=LEVELS[i];lives=lv.lives;score=0;
     initG();initP();initE(lv);powerups=[];inputDir='none';P.length=0;FT.length=0;claimAC=[];cutsCt=0;
-    document.getElementById('l-title').textContent=lv.name;document.getElementById('l-desc').textContent=lv.desc;
+    document.getElementById('l-title').textContent='✦ '+lv.name+' ✦';document.getElementById('l-desc').textContent=GALAXIES[lv.galaxy].name+'\n\n'+lv.desc;
     showScr('s-lvl');state='levelIntro';
 }
 function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';state='playing';}
@@ -782,7 +1059,7 @@ document.getElementById('p-quit').onclick=()=>{sfxSel();resumeG();hideScr();stat
 let lt=0;
 function loop(time){
     const dt=Math.min((time-lt)/1000,0.05);lt=time;
-    if(state==='playing'){moveP(dt);moveE(dt);lerpPlayer(dt);updateHUD();if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>8){playerSpeed-=dt*0.8;if(playerSpeed<=8){playerSpeed=8;trailSpeed=6;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();}
+    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);lerpPlayer(dt);updateHUD();if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>8){playerSpeed-=dt*0.8;if(playerSpeed<=8){playerSpeed=8;trailSpeed=6;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();}
     if(state==='paused'||state==='dying')lerpPlayer(dt);
     if(state==='dying'){deathT-=dt;if(deathT<=0){document.getElementById('d-info').textContent=`${lives} ♥ LEFT - ${getPct()}% CLAIMED`;showScr('s-die');state='dead_pause';}}
     if(claimAT>0)claimAT-=dt;if(shakeD>0)shakeD-=dt;
