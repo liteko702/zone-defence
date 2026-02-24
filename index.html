@@ -3154,9 +3154,10 @@ const _origLoseLife=typeof loseLife==='function'?loseLife:null;
 document.getElementById('b-sandbox').onclick=()=>{sfxSel();startMusic('menu');startSandbox();};
 
 // ===== GAME LOOP =====
-let lt=0;
+let lt=0,_loopErr='';
 function loop(time){
     const dt=Math.min((time-lt)/1000,0.05);lt=time;
+    try{
     if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);updateRockets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();
     // Process enemy respawn queue
     for(let i=enemyRespawnQueue.length-1;i>=0;i--){
@@ -3178,6 +3179,10 @@ function loop(time){
     if(claimAT>0)claimAT-=dt;if(shakeD>0)shakeD-=dt;
     upP(dt);upFT(dt);
     if(state==='map')renderMap(time);else if(state==='hangar')renderHangar(time);else render(time);
+    }catch(e){_loopErr=e.message+' @ '+e.stack?.split('\n')[1]?.trim();
+        c.fillStyle='#f00';c.font='10px monospace';c.textAlign='left';c.fillText('ERR: '+_loopErr,4,H-4);
+    }
+    if(_loopErr){c.fillStyle='rgba(0,0,0,0.7)';c.fillRect(0,H-20,W,20);c.fillStyle='#f00';c.font='9px monospace';c.textAlign='left';c.fillText('ERR: '+_loopErr.slice(0,80),4,H-6);}
     requestAnimationFrame(loop);
 }
 initG();requestAnimationFrame(loop);
