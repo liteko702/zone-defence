@@ -35,7 +35,7 @@
         .db.pr{background:rgba(0,150,255,0.35);border-color:#0af}
         #du{left:54px;top:0}#dd{left:54px;top:104px}#dl{left:0;top:52px}#dr{left:108px;top:52px}
         @media(pointer:coarse),(max-width:900px){#dp{display:block}}
-        #fs{position:fixed;top:4px;right:4px;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:16px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1}
+        #fs{position:fixed;bottom:12px;right:12px;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:16px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1}
         #pov{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:30;flex-direction:column;align-items:center;justify-content:center;gap:10px}
         #pov.v{display:flex}
         #pov h2{color:#ff0;font-size:clamp(14px,4vw,20px);text-shadow:2px 2px #840;margin-bottom:8px}
@@ -451,7 +451,7 @@ function startLv(i){
     document.getElementById('l-title').textContent=lv.name;document.getElementById('l-desc').textContent=lv.desc;
     showScr('s-lvl');state='levelIntro';
 }
-function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.removeProperty('display');state='playing';}
+function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';state='playing';}
 function respawn(){for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.mt=0;inputDir='none';playerSpeed=8;trailSpeed=6;shieldTimer=0;hideScr();state='playing';}
 
 // Buttons
