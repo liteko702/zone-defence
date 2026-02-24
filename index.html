@@ -668,10 +668,10 @@ let dD=null;
     el.addEventListener('touchend',e=>{e.preventDefault();if(dD===dir)dD=null;el.classList.remove('pr');},{passive:false});
     el.addEventListener('touchcancel',e=>{e.preventDefault();if(dD===dir)dD=null;el.classList.remove('pr');},{passive:false});
 });
-// Map swipe to switch galaxies
+// Map swipe: galaxy view = switch galaxies, constellation view = swipe right to go back
 let mapSwSx=0,mapSwId=null;
 cv.addEventListener('touchstart',e=>{if(state==='map'){const t=e.changedTouches[0];mapSwSx=t.clientX;mapSwId=t.identifier;}},{passive:true});
-cv.addEventListener('touchend',e=>{if(state==='map'){for(const t of e.changedTouches){if(t.identifier===mapSwId){const dx=t.clientX-mapSwSx;if(Math.abs(dx)>50){switchGalaxy(dx<0?1:-1);}mapSwId=null;}}}},{passive:true});
+cv.addEventListener('touchend',e=>{if(state==='map'){for(const t of e.changedTouches){if(t.identifier===mapSwId){const dx=t.clientX-mapSwSx;if(Math.abs(dx)>50){if(mapMode==='galaxy')switchGalaxy(dx<0?1:-1);else if(dx>0)zoomOutToGalaxy();}mapSwId=null;}}}},{passive:true});
 
 // Swipe controls on canvas — swipe to set direction, tap to stop
 let swSx=0,swSy=0,swId=null;
@@ -1377,241 +1377,348 @@ function render(time){
 // ===== MAP =====
 let mSel=0;
 
-// === GALAXY-ZOOM STAR CHART ===
-let mapGalaxy=0; // which galaxy view we're in
-let mapZoom=1,mapZoomTarget=1,mapPanX=0,mapPanY=0,mapPanTargetX=0,mapPanTargetY=0;
-let mapTransition=0; // 0=idle, >0=zooming in, <0=zooming out
+// === ZOOMABLE STAR CHART ===
+// Two zoom levels: 'galaxy' (wide view, all constellations) and 'constellation' (zoomed into one)
+let mapMode='galaxy'; // 'galaxy' or 'constellation'
+let mapGalaxy=0;
+let mapSelConstellation=-1; // which constellation is selected in galaxy view (index into UNIVERSES[].constellations)
+let mapZoom=1,mapZoomTarget=1;
+let mapCamX=0,mapCamY=0,mapCamTargetX=0,mapCamTargetY=0;
 let mapLastTime=0;
 
-function getGalaxyNodes(gi){
-    const g=UNIVERSES[gi],levels=g.constellations;
-    const nodeR=Math.max(18,Math.min(30,W*0.05));
-    const cx=W/2,cy=H*0.45;
-    const spread=Math.min(W,H)*0.28;
+// Enemy type display names
+const ETYPE_NAMES={bounce:'PATROL',chase:'HUNTER',phase:'PHASE',tracer:'TRACER',shield:'ARMOR',orbit:'ORBIT',split:'SPLIT',boss:'BOSS'};
+const ETYPE_COLORS={bounce:'#4af',chase:'#f44',phase:'#c4f',tracer:'#0f4',shield:'#ff0',orbit:'#fa0',split:'#f4a',boss:'#f00'};
+
+function getConstellationLayout(cstKey,cx,cy,size){
+    const cst=CONSTELLATIONS[cstKey];if(!cst)return{stars:[],lines:[]};
+    // Get bounding box of constellation stars to center them
+    let minX=1,maxX=0,minY=1,maxY=0;
+    for(const s of cst.stars){minX=Math.min(minX,s[0]);maxX=Math.max(maxX,s[0]);minY=Math.min(minY,s[1]);maxY=Math.max(maxY,s[1]);}
+    const cstW=maxX-minX||1,cstH=maxY-minY||1;
+    const scale=size/Math.max(cstW,cstH);
+    const ox=cx-(minX+cstW/2)*scale,oy=cy-(minY+cstH/2)*scale;
+    const stars=cst.stars.map(s=>({x:ox+s[0]*scale,y:oy+s[1]*scale}));
+    return{stars,lines:cst.lines,raw:cst};
+}
+
+// ---- GALAXY VIEW: shows all constellations as small shapes ----
+function renderGalaxyView(time){
+    const fs=Math.max(10,Math.min(14,W*0.03));
+    const g=UNIVERSES[mapGalaxy];
+
+    // Title
+    c.fillStyle=g.color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText(g.name,W/2,12);
+    c.fillStyle='#667';c.font=(fs*0.4)+'px "Press Start 2P"';
+    c.fillText('GALAXY '+(mapGalaxy+1)+' OF '+UNIVERSES.length+'  ·  TAP A CONSTELLATION',W/2,14+fs+4);
+
+    const consts=g.constellations;
+    const count=consts.length;
+    // Layout constellations in a grid/spread
+    const cols=Math.min(count,2),rows=Math.ceil(count/cols);
+    const cellW=W/(cols+0.5),cellH=(H-100)/(rows+0.5);
+    const cstSize=Math.min(cellW,cellH)*0.55;
+    const startY=50+fs;
+
     const nodes=[];
-    const count=levels.length;
     for(let j=0;j<count;j++){
-        const angle=-Math.PI/2+j*(Math.PI*2/count);
-        const r=spread*(0.7+0.3*Math.sin(j*2.1));
-        const x=cx+Math.cos(angle)*r;
-        const y=cy+Math.sin(angle)*r*0.7;
-        nodes.push({x,y,i:levels[j],localIdx:j});
+        const row=Math.floor(j/cols),col=j%cols;
+        const cx=cellW*(col+0.75),cy=startY+cellH*(row+0.5);
+        const li=consts[j],lv=LEVELS[li];
+        const ul=li<save.unlocked;
+        const sel=j===mapSelConstellation;
+        const layout=getConstellationLayout(lv.constellation,cx,cy,cstSize);
+
+        // Draw constellation lines
+        c.globalAlpha=ul?(sel?0.6:0.35):0.12;
+        c.strokeStyle=ul?lv.color:'#445';c.lineWidth=sel?2.5:1.5;
+        for(const[a,b]of layout.lines){
+            c.beginPath();c.moveTo(layout.stars[a].x,layout.stars[a].y);
+            c.lineTo(layout.stars[b].x,layout.stars[b].y);c.stroke();
+        }
+
+        // Draw stars
+        for(const s of layout.stars){
+            c.beginPath();c.arc(s.x,s.y,sel?4:3,0,Math.PI*2);
+            c.fillStyle=ul?'#fff':'#556';c.fill();
+        }
+        c.globalAlpha=1;
+
+        // Constellation name
+        c.fillStyle=ul?(sel?'#fff':lv.color):'#445';
+        c.font=Math.max(7,fs*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+        c.fillText(lv.name,cx,cy+cstSize*0.55+8);
+
+        // Level number + stars earned
+        c.fillStyle=ul?'#889':'#334';c.font=Math.max(6,fs*0.35)+'px "Press Start 2P"';
+        c.fillText('LV '+(li+1),cx,cy+cstSize*0.55+8+fs*0.5+4);
+        if(save.stars[li]){
+            c.fillStyle='#ff0';c.fillText('★'.repeat(save.stars[li]),cx,cy+cstSize*0.55+8+fs*0.5+4+fs*0.35+3);
+        }
+
+        // Boss indicator
+        if(lv.boss){c.fillStyle='#f44';c.font=Math.max(6,fs*0.3)+'px "Press Start 2P"';c.fillText('⚠ BOSS',cx,cy-cstSize*0.55-12);}
+
+        // Selected highlight
+        if(sel&&ul){
+            const p=0.4+0.6*Math.sin(time*0.004);
+            c.strokeStyle=`rgba(0,255,200,${p})`;c.lineWidth=2;
+            c.strokeRect(cx-cstSize*0.7,cy-cstSize*0.6,cstSize*1.4,cstSize*1.2+30);
+        }
+
+        // Lock overlay
+        if(!ul){
+            c.fillStyle='#556';c.font=Math.max(14,cstSize*0.25)+'px "Press Start 2P"';c.textBaseline='middle';
+            c.fillText('🔒',cx,cy);
+        }
+
+        nodes.push({x:cx,y:cy,w:cstSize*1.4,h:cstSize*1.2+30,li,j,ul});
     }
-    return {nodes,nodeR};
+    renderMap._galaxyNodes=nodes;
+}
+
+// ---- CONSTELLATION VIEW: zoomed in, shows level on each star ----
+function renderConstellationView(time){
+    const li=UNIVERSES[mapGalaxy].constellations[mapSelConstellation];
+    const lv=LEVELS[li];
+    const cst=CONSTELLATIONS[lv.constellation];if(!cst)return;
+    const fs=Math.max(10,Math.min(14,W*0.03));
+
+    // Title
+    c.fillStyle=lv.color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText('✦ '+lv.name+' ✦',W/2,12);
+    c.fillStyle='#889';c.font=(fs*0.4)+'px "Press Start 2P"';
+    c.fillText(UNIVERSES[mapGalaxy].name+' · LEVEL '+(li+1),W/2,14+fs+4);
+
+    // Draw constellation large
+    const margin=80,topOff=50+fs;
+    const availH=H-topOff-margin;
+    const availW=W-60;
+    const cstSize=Math.min(availW,availH)*0.85;
+    const layout=getConstellationLayout(lv.constellation,W/2,topOff+availH*0.45,cstSize);
+
+    // Lines
+    c.globalAlpha=0.4;c.strokeStyle=lv.color;c.lineWidth=2;
+    for(const[a,b]of layout.lines){
+        c.beginPath();c.moveTo(layout.stars[a].x,layout.stars[a].y);
+        c.lineTo(layout.stars[b].x,layout.stars[b].y);c.stroke();
+    }
+    c.globalAlpha=1;
+
+    // The main level node is on the brightest/center star
+    // For now, show level info centered on the constellation
+    const nodeR=Math.max(20,Math.min(32,W*0.06));
+    // Draw all stars as decorative
+    for(let si=0;si<layout.stars.length;si++){
+        const s=layout.stars[si];
+        c.beginPath();c.arc(s.x,s.y,si===0?nodeR*0.5:4,0,Math.PI*2);
+        c.fillStyle=si===0?lv.color:'rgba(255,255,255,0.6)';c.fill();
+        if(si===0){
+            c.strokeStyle='rgba(255,255,255,0.2)';c.lineWidth=1;c.stroke();
+        }
+    }
+
+    // Level play button centered
+    const btnX=W/2,btnY=topOff+availH*0.45;
+    const p=0.5+0.5*Math.sin(time*0.004);
+    // Big planet node
+    const pg=c.createRadialGradient(btnX-nodeR*0.25,btnY-nodeR*0.25,0,btnX,btnY,nodeR);
+    pg.addColorStop(0,'rgba(255,255,255,0.3)');pg.addColorStop(0.4,lv.color);pg.addColorStop(1,'rgba(0,0,0,0.4)');
+    c.beginPath();c.arc(btnX,btnY,nodeR,0,Math.PI*2);c.fillStyle=pg;c.fill();
+    if(li<save.unlocked){
+        c.strokeStyle=`rgba(0,255,200,${0.4+0.4*p})`;c.lineWidth=3;c.stroke();
+        c.fillStyle='#000';c.font=Math.max(10,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText('▶',btnX,btnY);
+        c.fillStyle=`rgba(0,255,200,${0.5+0.5*p})`;c.font=Math.max(7,nodeR*0.3)+'px "Press Start 2P"';c.textBaseline='top';
+        c.fillText('TAP TO PLAY',btnX,btnY+nodeR+6);
+    }else{
+        c.strokeStyle='#445';c.lineWidth=2;c.stroke();
+        c.fillStyle='#556';c.font=Math.max(12,nodeR*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText('🔒',btnX,btnY);
+    }
+    renderMap._playBtn={x:btnX,y:btnY,r:nodeR+10,li};
+
+    // Stars earned
+    if(save.stars[li]){
+        c.fillStyle='#ff0';c.font=Math.max(8,nodeR*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+        c.fillText('★'.repeat(save.stars[li]),btnX,btnY+nodeR+22);
+    }
+
+    // === ENEMY INFO PANEL ===
+    const panelY=H-margin-10;
+    const panelH=60;
+    c.fillStyle='rgba(0,0,30,0.85)';
+    c.fillRect(10,panelY-panelH,W-20,panelH);
+    c.strokeStyle=lv.color;c.lineWidth=1;c.strokeRect(10,panelY-panelH,W-20,panelH);
+
+    c.fillStyle='#aab';c.font=Math.max(6,fs*0.35)+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
+    c.fillText('ENEMIES:',18,panelY-panelH+6);
+    c.fillText('TARGET: '+lv.target+'%  ·  LIVES: '+lv.lives,18,panelY-panelH+6+fs*0.35+14);
+
+    // Draw enemy type icons
+    const allEnemies=[...lv.enemies];
+    if(lv.bossEnemy)allEnemies.push(lv.bossEnemy);
+    let ex=18;
+    const ey=panelY-panelH+6+fs*0.35+4;
+    const eSize=Math.max(7,fs*0.4);
+    for(const en of allEnemies){
+        const name=ETYPE_NAMES[en.type]||en.type.toUpperCase();
+        const col=ETYPE_COLORS[en.type]||'#fff';
+        // Enemy dot
+        c.beginPath();c.arc(ex+5,ey,4,0,Math.PI*2);c.fillStyle=col;c.fill();
+        // Name
+        c.fillStyle=col;c.font=eSize+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='middle';
+        c.fillText(name,ex+12,ey);
+        ex+=12+name.length*eSize*0.65+8;
+    }
 }
 
 function renderMap(time){
     const dt=Math.min(50,(time-(mapLastTime||time)))/1000;mapLastTime=time;
     drawBg(time);
-    const fs=Math.max(10,Math.min(14,W*0.03));
-    const g=UNIVERSES[mapGalaxy];
 
-    // Smooth zoom/pan
-    mapZoom+=(mapZoomTarget-mapZoom)*Math.min(1,dt*4);
-    mapPanX+=(mapPanTargetX-mapPanX)*Math.min(1,dt*4);
-    mapPanY+=(mapPanTargetY-mapPanY)*Math.min(1,dt*4);
+    // Smooth camera
+    mapZoom+=(mapZoomTarget-mapZoom)*Math.min(1,dt*5);
+    mapCamX+=(mapCamTargetX-mapCamX)*Math.min(1,dt*5);
+    mapCamY+=(mapCamTargetY-mapCamY)*Math.min(1,dt*5);
 
     c.save();
-    c.translate(mapPanX,mapPanY);
-    c.translate(W/2,H/2);c.scale(mapZoom,mapZoom);c.translate(-W/2,-H/2);
+    c.translate(W/2,H/2);c.scale(mapZoom,mapZoom);c.translate(-W/2+mapCamX,-H/2+mapCamY);
 
-    // Galaxy title + subtitle
-    c.fillStyle=g.color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText(g.name,W/2,16);
-    c.fillStyle='#889';c.font=(fs*0.45)+'px "Press Start 2P"';
-    c.fillText('GALAXY '+(mapGalaxy+1)+' OF '+UNIVERSES.length,W/2,16+fs+6);
-    c.fillStyle='#ff0';c.font=(fs*0.5)+'px "Press Start 2P"';
-    c.fillText('HI-SCORE: '+save.hi,W/2,16+fs+6+fs*0.45+6);
+    if(mapMode==='galaxy')renderGalaxyView(time);
+    else renderConstellationView(time);
 
-    const {nodes,nodeR}=getGalaxyNodes(mapGalaxy);
+    c.restore();
 
-    // Connection lines between levels in this galaxy
-    c.strokeStyle=g.color.replace(')',',0.2)').replace('rgb','rgba').replace('#','');
-    // Simple: use galaxy color with alpha
-    c.globalAlpha=0.25;c.strokeStyle=g.color;c.lineWidth=2;c.setLineDash([6,6]);
-    c.beginPath();
-    for(let j=0;j<nodes.length;j++){
-        if(j===0)c.moveTo(nodes[j].x,nodes[j].y);else c.lineTo(nodes[j].x,nodes[j].y);
-    }
-    c.stroke();c.setLineDash([]);c.globalAlpha=1;
-
-    // Draw constellation pattern in background (large, faint)
-    const selNode=nodes.find(n=>n.i===mSel);
-    if(selNode){
-        const lv=LEVELS[selNode.i];
-        const cst=CONSTELLATIONS[lv.constellation];
-        if(cst){
-            c.globalAlpha=0.12;c.strokeStyle=lv.color;c.lineWidth=1;
-            const cw=W*0.5,ch=H*0.5,ox=W/2-cw/2,oy=H/2-ch/2;
-            for(const[a2,b2]of cst.lines){
-                const sa2=cst.stars[a2],sb2=cst.stars[b2];
-                c.beginPath();c.moveTo(ox+sa2[0]*cw,oy+sa2[1]*ch);c.lineTo(ox+sb2[0]*cw,oy+sb2[1]*ch);c.stroke();
-            }
-            for(const s2 of cst.stars){
-                c.fillStyle='rgba(255,255,255,0.3)';c.beginPath();c.arc(ox+s2[0]*cw,oy+s2[1]*ch,2,0,Math.PI*2);c.fill();
-            }
-            c.globalAlpha=1;
-        }
-    }
-
-    // Nodes
-    for(const n of nodes){
-        const i=n.i,ul=i<save.unlocked,sel=i===mSel,lv=LEVELS[i];
-        if(ul){
-            const p=0.5+0.5*Math.sin(time*0.003+i);
-            // Outer glow
-            c.beginPath();c.arc(n.x,n.y,nodeR+12,0,Math.PI*2);
-            c.fillStyle=sel?`rgba(0,255,200,${0.1+0.08*p})`:`rgba(0,150,255,${0.04+0.03*p})`;c.fill();
-            // Planet sphere
-            const pg=c.createRadialGradient(n.x-nodeR*0.25,n.y-nodeR*0.25,0,n.x,n.y,nodeR);
-            pg.addColorStop(0,'rgba(255,255,255,0.3)');pg.addColorStop(0.4,lv.color);pg.addColorStop(1,'rgba(0,0,0,0.4)');
-            c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle=pg;c.fill();
-            c.strokeStyle='rgba(255,255,255,0.15)';c.lineWidth=1;c.stroke();
-            // Level number
-            c.fillStyle='#000';c.font=Math.max(9,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-            c.fillText(''+(i+1),n.x,n.y);
-            // Name + constellation preview for selected
-            if(sel){
-                const sa=0.5+0.5*Math.sin(time*0.005);
-                c.beginPath();c.arc(n.x,n.y,nodeR+6,0,Math.PI*2);c.strokeStyle=`rgba(0,255,200,${sa})`;c.lineWidth=2.5;c.stroke();
-                c.fillStyle='#fff';c.font=Math.max(8,nodeR*0.38)+'px "Press Start 2P"';c.textBaseline='bottom';
-                c.fillText('✦ '+lv.name+' ✦',n.x,n.y-nodeR-14);
-                // Mini constellation
-                const mcst=CONSTELLATIONS[lv.constellation];
-                if(mcst){
-                    c.globalAlpha=0.5;c.strokeStyle=lv.color;c.lineWidth=0.8;
-                    const mw=nodeR*3.5,mh=nodeR*3.5,mx=n.x-mw/2,my=n.y-nodeR-mh-24;
-                    for(const[a2,b2]of mcst.lines){const sa2=mcst.stars[a2],sb2=mcst.stars[b2];c.beginPath();c.moveTo(mx+sa2[0]*mw,my+sa2[1]*mh);c.lineTo(mx+sb2[0]*mw,my+sb2[1]*mh);c.stroke();}
-                    for(const s2 of mcst.stars){c.fillStyle='#fff';c.beginPath();c.arc(mx+s2[0]*mw,my+s2[1]*mh,2,0,Math.PI*2);c.fill();}
-                    c.globalAlpha=1;
-                }
-                // "TAP TO PLAY" prompt
-                c.fillStyle=`rgba(0,255,200,${0.5+0.5*Math.sin(time*0.004)})`;
-                c.font=Math.max(6,nodeR*0.28)+'px "Press Start 2P"';c.textBaseline='top';
-                c.fillText('TAP TO PLAY',n.x,n.y+nodeR+8);
-            }
-            // Stars
-            if(save.stars[i]){c.fillStyle='#ff0';c.font=Math.max(7,nodeR*0.3)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-            const starY=sel?n.y+nodeR+20:n.y+nodeR+6;
-            c.fillText('★'.repeat(save.stars[i]),n.x,starY);}
-        }else{
-            // Locked node
-            c.beginPath();c.arc(n.x,n.y,nodeR,0,Math.PI*2);c.fillStyle='#1a1a2e';c.fill();
-            c.strokeStyle='#445';c.lineWidth=2;c.stroke();
-            // Lock icon
-            c.fillStyle='#556';c.font=Math.max(10,nodeR*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-            c.fillText('🔒',n.x,n.y);
-        }
-    }
-
-    c.restore(); // undo zoom/pan transform
-
-    // === BOTTOM BAR: galaxy nav + hangar ===
+    // === BOTTOM BAR ===
     const barH=Math.max(36,H*0.08);
     const barY=H-barH;
-    c.fillStyle='rgba(0,0,20,0.85)';c.fillRect(0,barY,W,barH);
+    c.fillStyle='rgba(0,0,20,0.9)';c.fillRect(0,barY,W,barH);
     c.strokeStyle='rgba(100,150,255,0.3)';c.lineWidth=1;c.beginPath();c.moveTo(0,barY);c.lineTo(W,barY);c.stroke();
+    const btnW=Math.max(40,W*0.1),btnH=barH-8,btnY2=barY+4;
 
-    const btnW=Math.max(40,W*0.1);const btnH=barH-8;const btnY=barY+4;
-
-    // Left arrow (prev galaxy)
-    const lbX=8;
-    if(mapGalaxy>0){
-        c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(lbX,btnY,btnW,btnH);
-        c.strokeStyle='#0af';c.lineWidth=1;c.strokeRect(lbX,btnY,btnW,btnH);
-        c.fillStyle='#0af';c.font=Math.max(10,btnH*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-        c.fillText('◄',lbX+btnW/2,btnY+btnH/2);
+    if(mapMode==='galaxy'){
+        // Galaxy nav arrows
+        if(mapGalaxy>0){
+            c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(8,btnY2,btnW,btnH);
+            c.strokeStyle='#0af';c.lineWidth=1;c.strokeRect(8,btnY2,btnW,btnH);
+            c.fillStyle='#0af';c.font=Math.max(10,btnH*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('◄',8+btnW/2,btnY2+btnH/2);
+        }
+        renderMap._lb={x:8,y:btnY2,w:btnW,h:btnH,active:mapGalaxy>0};
+        const rbX=W-btnW-8;
+        const maxUG=UNIVERSES.findIndex(u=>u.constellations.some(ci=>ci>=save.unlocked));
+        const canR=mapGalaxy<UNIVERSES.length-1&&(maxUG<0||mapGalaxy<maxUG);
+        if(canR){
+            c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(rbX,btnY2,btnW,btnH);
+            c.strokeStyle='#0af';c.lineWidth=1;c.strokeRect(rbX,btnY2,btnW,btnH);
+            c.fillStyle='#0af';c.font=Math.max(10,btnH*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('►',rbX+btnW/2,btnY2+btnH/2);
+        }
+        renderMap._rb={x:rbX,y:btnY2,w:btnW,h:btnH,active:canR};
+        // Galaxy dots
+        const dotGap=16,dotsX=W/2-(UNIVERSES.length*dotGap)/2+dotGap/2;
+        for(let gi=0;gi<UNIVERSES.length;gi++){
+            c.beginPath();c.arc(dotsX+gi*dotGap,barY+barH/2,4,0,Math.PI*2);
+            c.fillStyle=gi===mapGalaxy?UNIVERSES[gi].color:'#445';c.fill();
+        }
+    }else{
+        // Back button
+        c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(8,btnY2,btnW+20,btnH);
+        c.strokeStyle='#0af';c.lineWidth=1;c.strokeRect(8,btnY2,btnW+20,btnH);
+        c.fillStyle='#0af';c.font=Math.max(8,btnH*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText('◄ BACK',8+(btnW+20)/2,btnY2+btnH/2);
+        renderMap._backBtn={x:8,y:btnY2,w:btnW+20,h:btnH};
     }
-    renderMap._lb={x:lbX,y:btnY,w:btnW,h:btnH,active:mapGalaxy>0};
 
-    // Right arrow (next galaxy)
-    const rbX=W-btnW-8;
-    const maxUnlockedGalaxy=UNIVERSES.findIndex(u=>u.constellations.some(ci=>ci>=save.unlocked));
-    const canGoRight=mapGalaxy<UNIVERSES.length-1&&(maxUnlockedGalaxy<0||mapGalaxy<maxUnlockedGalaxy);
-    if(canGoRight){
-        c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(rbX,btnY,btnW,btnH);
-        c.strokeStyle='#0af';c.lineWidth=1;c.strokeRect(rbX,btnY,btnW,btnH);
-        c.fillStyle='#0af';c.font=Math.max(10,btnH*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-        c.fillText('►',rbX+btnW/2,btnY+btnH/2);
-    }
-    renderMap._rb={x:rbX,y:btnY,w:btnW,h:btnH,active:canGoRight};
-
-    // Galaxy dots indicator
-    const dotR=4,dotGap=16;
-    const dotsW=UNIVERSES.length*dotGap;
-    const dotsX=W/2-dotsW/2+dotGap/2;
-    for(let gi=0;gi<UNIVERSES.length;gi++){
-        const dx=dotsX+gi*dotGap,dy=barY+barH/2;
-        c.beginPath();c.arc(dx,dy,dotR,0,Math.PI*2);
-        c.fillStyle=gi===mapGalaxy?UNIVERSES[gi].color:'#445';c.fill();
-    }
-
-    // Hangar button
-    const hbW=Math.max(60,W*0.14),hbH=btnH,hbX=W/2-hbW/2,hbY=btnY;
-    // Only show if not overlapping dots — put it right of center
-    const hbX2=rbX-hbW-10;
-    c.fillStyle='rgba(0,0,30,0.8)';c.fillRect(hbX2,hbY,hbW,hbH);
-    c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(hbX2,hbY,hbW,hbH);
+    // Hangar button (always)
+    const hbW=Math.max(60,W*0.14),hbH=btnH;
+    const hbX=W-btnW-hbW-18;
+    c.fillStyle='rgba(0,0,30,0.8)';c.fillRect(hbX,btnY2,hbW,hbH);
+    c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(hbX,btnY2,hbW,hbH);
     c.fillStyle='#0af';c.font=Math.max(7,hbH*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-    c.fillText('⚙ HANGAR',hbX2+hbW/2,hbY+hbH/2);
-    renderMap._hb={x:hbX2,y:hbY,w:hbW,h:hbH};
+    c.fillText('⚙ HANGAR',hbX+hbW/2,btnY2+hbH/2);
+    renderMap._hb={x:hbX,y:btnY2,w:hbW,h:hbH};
 
     // Ship name
-    c.fillStyle='#0fa';c.font=Math.max(6,Math.min(8,W*0.015))+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='middle';
-    c.fillText('SHIP: '+SHIPS[curShip].name,lbX+btnW+10,barY+barH/2);
+    c.fillStyle='#0fa';c.font=Math.max(6,Math.min(8,W*0.015))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    const shipX=mapMode==='galaxy'?W/2:8+btnW+40+hbW/2;
+    c.fillText('SHIP: '+SHIPS[curShip].name,shipX,barY+barH/2-10);
 
     drP();drawScanlines();
-
-    // Store for click detection
-    renderMap._nodes=nodes;renderMap._nodeR=nodeR;renderMap._galaxy=mapGalaxy;
 }
 
 function switchGalaxy(dir){
-    const next=mapGalaxy+dir;
-    if(next<0||next>=UNIVERSES.length)return;
-    const maxUnlockedGalaxy=UNIVERSES.findIndex(u=>u.constellations.some(ci=>ci>=save.unlocked));
-    if(dir>0&&maxUnlockedGalaxy>=0&&next>maxUnlockedGalaxy)return;
-    mapGalaxy=next;
-    // Select first unlocked level in new galaxy or last unlocked
-    const g=UNIVERSES[mapGalaxy];
-    const firstInGalaxy=g.constellations[0];
-    const lastInGalaxy=g.constellations[g.constellations.length-1];
-    mSel=Math.min(Math.max(firstInGalaxy,save.unlocked-1),lastInGalaxy);
-    if(mSel<firstInGalaxy)mSel=firstInGalaxy;
+    const next=mapGalaxy+dir;if(next<0||next>=UNIVERSES.length)return;
+    const maxUG=UNIVERSES.findIndex(u=>u.constellations.some(ci=>ci>=save.unlocked));
+    if(dir>0&&maxUG>=0&&next>maxUG)return;
+    mapGalaxy=next;mapSelConstellation=0;sfxSel();
+}
+
+function zoomIntoConstellation(j){
+    const li=UNIVERSES[mapGalaxy].constellations[j];
+    mapSelConstellation=j;mSel=li;
+    mapMode='constellation';
+    mapZoomTarget=1;mapCamTargetX=0;mapCamTargetY=0;
     sfxSel();
 }
 
-// Map click
+function zoomOutToGalaxy(){
+    mapMode='galaxy';
+    mapZoomTarget=1;mapCamTargetX=0;mapCamTargetY=0;
+    sfxSel();
+}
+
+// Map click handler
 cv.addEventListener('click',e=>{
     if(state!=='map')return;
-    const nodes=renderMap._nodes,nodeR=renderMap._nodeR;if(!nodes)return;
     const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
     const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
+
     // Hangar button
     const hb=renderMap._hb;if(hb&&mx>=hb.x&&mx<=hb.x+hb.w&&my>=hb.y&&my<=hb.y+hb.h){sfxSel();showHangar();return;}
-    // Galaxy nav buttons
-    const lb=renderMap._lb;if(lb&&lb.active&&mx>=lb.x&&mx<=lb.x+lb.w&&my>=lb.y&&my<=lb.y+lb.h){switchGalaxy(-1);return;}
-    const rb=renderMap._rb;if(rb&&rb.active&&mx>=rb.x&&mx<=rb.x+rb.w&&my>=rb.y&&my<=rb.y+rb.h){switchGalaxy(1);return;}
-    // Level nodes
-    for(const n of nodes){if((mx-n.x)**2+(my-n.y)**2<(nodeR+14)**2){
-        if(n.i===mSel&&n.i<save.unlocked){sfxSel();startLv(n.i);}
-        else if(n.i<save.unlocked){mSel=n.i;sfxSel();}
-        else beep(150,0.15,'sawtooth',0.06);
-        return;
-    }}
+
+    if(mapMode==='galaxy'){
+        // Galaxy nav
+        const lb=renderMap._lb;if(lb&&lb.active&&mx>=lb.x&&mx<=lb.x+lb.w&&my>=lb.y&&my<=lb.y+lb.h){switchGalaxy(-1);return;}
+        const rb=renderMap._rb;if(rb&&rb.active&&mx>=rb.x&&mx<=rb.x+rb.w&&my>=rb.y&&my<=rb.y+rb.h){switchGalaxy(1);return;}
+        // Constellation click
+        const gn=renderMap._galaxyNodes;if(gn){
+            for(const n of gn){
+                if(mx>=n.x-n.w/2&&mx<=n.x+n.w/2&&my>=n.y-n.h/2&&my<=n.y+n.h/2){
+                    if(n.ul){zoomIntoConstellation(n.j);}
+                    else beep(150,0.15,'sawtooth',0.06);
+                    return;
+                }
+            }
+        }
+    }else{
+        // Back button
+        const bb=renderMap._backBtn;if(bb&&mx>=bb.x&&mx<=bb.x+bb.w&&my>=bb.y&&my<=bb.y+bb.h){zoomOutToGalaxy();return;}
+        // Play button
+        const pb=renderMap._playBtn;if(pb){
+            if((mx-pb.x)**2+(my-pb.y)**2<pb.r**2){
+                if(pb.li<save.unlocked){sfxSel();startLv(pb.li);}
+                else beep(150,0.15,'sawtooth',0.06);
+                return;
+            }
+        }
+    }
 });
+
+// Keyboard controls
 addEventListener('keydown',e=>{if(state!=='map')return;
-    const g=UNIVERSES[mapGalaxy],gLevels=g.constellations;
-    const curIdx=gLevels.indexOf(mSel);
-    if(e.key==='ArrowUp'||e.key==='w'){
-        if(curIdx<gLevels.length-1&&gLevels[curIdx+1]<save.unlocked){mSel=gLevels[curIdx+1];sfxSel();}
+    if(mapMode==='galaxy'){
+        if(e.key==='ArrowLeft'||e.key==='a')switchGalaxy(-1);
+        if(e.key==='ArrowRight'||e.key==='d')switchGalaxy(1);
+        if(e.key==='ArrowUp'||e.key==='w'){mapSelConstellation=Math.max(0,mapSelConstellation-1);sfxSel();}
+        if(e.key==='ArrowDown'||e.key==='s'){mapSelConstellation=Math.min(UNIVERSES[mapGalaxy].constellations.length-1,mapSelConstellation+1);sfxSel();}
+        if(e.key==='Enter'||e.key===' '){const li=UNIVERSES[mapGalaxy].constellations[mapSelConstellation];if(li<save.unlocked)zoomIntoConstellation(mapSelConstellation);}
+    }else{
+        if(e.key==='Escape'||e.key==='Backspace')zoomOutToGalaxy();
+        if(e.key==='Enter'||e.key===' '){const pb=renderMap._playBtn;if(pb&&pb.li<save.unlocked){sfxSel();startLv(pb.li);}}
     }
-    if(e.key==='ArrowDown'||e.key==='s'){
-        if(curIdx>0){mSel=gLevels[curIdx-1];sfxSel();}
-    }
-    if(e.key==='ArrowLeft'||e.key==='a'){switchGalaxy(-1);}
-    if(e.key==='ArrowRight'||e.key==='d'){switchGalaxy(1);}
-    if(e.key==='Enter'||e.key===' '){startLv(mSel);sfxSel();}
 });
 
 // ===== UI =====
@@ -1619,10 +1726,15 @@ function showScr(id){document.querySelectorAll('.scr').forEach(s=>s.classList.re
 function hideScr(){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('v'));document.getElementById('ui').classList.remove('on');}
 function showMap(){state='map';hideScr();document.getElementById('hud').style.display='none';document.getElementById('dp').style.display='none';document.getElementById('pov').classList.remove('v');
     mSel=Math.min(save.unlocked-1,LEVELS.length-1);
-    // Set galaxy to where player's highest unlocked level is
-    mapGalaxy=0;
-    for(let gi=0;gi<UNIVERSES.length;gi++){if(UNIVERSES[gi].constellations.includes(mSel)){mapGalaxy=gi;break;}}
-    mapZoom=1;mapZoomTarget=1;mapPanX=0;mapPanY=0;mapPanTargetX=0;mapPanTargetY=0;
+    mapGalaxy=0;mapSelConstellation=0;mapMode='galaxy';
+    for(let gi=0;gi<UNIVERSES.length;gi++){
+        if(UNIVERSES[gi].constellations.includes(mSel)){
+            mapGalaxy=gi;
+            mapSelConstellation=UNIVERSES[gi].constellations.indexOf(mSel);
+            break;
+        }
+    }
+    mapZoom=1;mapZoomTarget=1;mapCamX=0;mapCamY=0;mapCamTargetX=0;mapCamTargetY=0;
     if(musicScene!=='menu')startMusic('menu');
 }
 function updateHUD(){document.getElementById('h-lv').textContent=''+(curLv+1);document.getElementById('h-sc').textContent=''+score;document.getElementById('h-cuts').textContent=''+cutsCt;document.getElementById('h-cl').textContent=getPct()+'%/'+LEVELS[curLv].target+'%';document.getElementById('h-lv2').textContent='♥'.repeat(lives);}
