@@ -180,12 +180,12 @@ phoenix:{stars:[[.5,.1],[.35,.3],[.65,.3],[.2,.5],[.8,.5],[.3,.7],[.7,.7],[.5,.8
 // Ordered by constellation star count (easiest first)
 
 const UNIVERSE_CONSTELLATIONS=[
-    // Universe 0: ANDROMEDA (no shooting, learn basics)
-    ['cassiopeia','lyra','cygnus'],
-    // Universe 1: MILKY WAY (shooting unlocks, new enemy types)
-    ['aquila','perseus','phoenix'],
-    // Universe 2: NEBULA PRIME (all enemies, hardest)
-    ['leo','sagittarius','orion'],
+    // Universe 0: ANDROMEDA (no shooting, learn basics) — 24 levels + boss
+    ['cassiopeia','lyra','cygnus','aquila'],
+    // Universe 1: MILKY WAY (shooting unlocks, new enemy types) — 35 levels + boss
+    ['perseus','phoenix','leo','gemini'],
+    // Universe 2: NEBULA PRIME (all enemies, hardest) — 47 levels + boss
+    ['sagittarius','scorpius','draco','orion'],
 ];
 
 const UNIVERSES=[
@@ -198,17 +198,15 @@ const UNIVERSES=[
 ];
 
 const CONSTELLATION_NAMES={
-    cassiopeia:'THE QUEEN',lyra:'THE HARP',cygnus:'THE SWAN',
-    aquila:'THE EAGLE',perseus:'THE HERO',phoenix:'THE FIREBIRD',
-    leo:'THE LION',sagittarius:'THE ARCHER',orion:'THE HUNTER',
-    gemini:'THE TWINS',scorpius:'THE SCORPION',draco:'THE DRAGON'
+    cassiopeia:'THE QUEEN',lyra:'THE HARP',cygnus:'THE SWAN',aquila:'THE EAGLE',
+    perseus:'THE HERO',phoenix:'THE FIREBIRD',leo:'THE LION',gemini:'THE TWINS',
+    sagittarius:'THE ARCHER',scorpius:'THE SCORPION',draco:'THE DRAGON',orion:'THE HUNTER'
 };
 
 const CONSTELLATION_COLORS={
-    cassiopeia:'#a8f',lyra:'#0fa',cygnus:'#0ff',
-    aquila:'#4af',perseus:'#f8a',phoenix:'#fa0',
-    leo:'#ff0',sagittarius:'#f4a',orion:'#6cf',
-    gemini:'#8ff',scorpius:'#f44',draco:'#8f0'
+    cassiopeia:'#a8f',lyra:'#0fa',cygnus:'#0ff',aquila:'#4af',
+    perseus:'#f8a',phoenix:'#fa0',leo:'#ff0',gemini:'#8ff',
+    sagittarius:'#f4a',scorpius:'#f44',draco:'#8f0',orion:'#6cf'
 };
 
 // Enemy pools per universe (unlocked progressively within each universe)
@@ -1561,95 +1559,113 @@ function getUniverseConstellations(ui){
     return result;
 }
 
-// ---- GALAXY VIEW: shows all constellations as small shapes ----
+// ---- GALAXY VIEW: shows 4 constellations + boss as shapes ----
 function renderGalaxyView(time){
     const fs=Math.max(10,Math.min(14,W*0.03));
     const g=UNIVERSES[mapGalaxy];
     const cstList=getUniverseConstellations(mapGalaxy);
-    // Include boss as a special node
     const bossLi=UNIVERSES[mapGalaxy].constellations[UNIVERSES[mapGalaxy].constellations.length-1];
     const hasBoss=LEVELS[bossLi]?.boss;
 
     // Title
     c.fillStyle=g.color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText(g.name,W/2,12);
-    c.fillStyle='#667';c.font=(fs*0.4)+'px "Press Start 2P"';
-    c.fillText('GALAXY '+(mapGalaxy+1)+' OF '+UNIVERSES.length+'  ·  TAP A CONSTELLATION',W/2,14+fs+4);
-    c.fillStyle='#ff0';c.font=(fs*0.35)+'px "Press Start 2P"';
-    c.fillText('🪙 '+save.coins,W/2,14+fs+4+fs*0.4+4);
+    c.fillText(g.name,W/2,10);
+    c.fillStyle='#ff0';c.font=(fs*0.4)+'px "Press Start 2P"';
+    c.fillText('🪙 '+(save.coins||0),W/2,12+fs+2);
 
-    const count=cstList.length+(hasBoss?1:0);
-    const cols=Math.min(count,2),rows=Math.ceil(count/cols);
-    const cellW=W/(cols+0.5),cellH=(H-110)/(rows+0.5);
-    const cstSize=Math.min(cellW,cellH)*0.5;
-    const startY=55+fs;
+    // Layout: 2×2 grid for 4 constellations, boss below center
+    const topOff=14+fs+2+fs*0.4+8;
+    const bossH=hasBoss?50:0;
+    const gridH=H-topOff-50-bossH; // leave space for bottom bar + boss
+    const gridW=W-20;
+    const cellW=gridW/2, cellH=gridH/2;
+    const cstSize=Math.min(cellW,cellH)*0.42;
 
     const nodes=[];
-    for(let j=0;j<cstList.length;j++){
-        const row=Math.floor(j/cols),col=j%cols;
-        const cx=cellW*(col+0.75),cy=startY+cellH*(row+0.5);
+    for(let j=0;j<cstList.length&&j<4;j++){
+        const row=Math.floor(j/2),col=j%2;
+        const cx=10+cellW*(col+0.5), cy=topOff+cellH*(row+0.5);
         const cstKey=cstList[j].key;
         const cstLevels=getConstellationLevels(cstKey,mapGalaxy);
         const firstLi=cstLevels[0]?.i??0;
         const ul=firstLi<save.unlocked;
         const sel=j===mapSelConstellation;
         const color=CONSTELLATION_COLORS[cstKey];
-        const layout=getConstellationLayout(cstKey,cx,cy,cstSize);
+        const layout=getConstellationLayout(cstKey,cx,cy-8,cstSize);
+        const done=cstLevels.filter(({i})=>save.stars[i]>0).length;
+        const allDone=done===cstLevels.length;
+
+        // Glow behind if selected
+        if(sel&&ul){
+            const p=0.3+0.3*Math.sin(time*0.004);
+            c.fillStyle=`rgba(0,255,200,${p*0.15})`;
+            c.fillRect(cx-cellW*0.47,cy-cellH*0.47,cellW*0.94,cellH*0.94);
+            c.strokeStyle=`rgba(0,255,200,${0.3+0.4*p})`;c.lineWidth=2;
+            c.strokeRect(cx-cellW*0.47,cy-cellH*0.47,cellW*0.94,cellH*0.94);
+        }
 
         // Constellation lines
-        c.globalAlpha=ul?(sel?0.6:0.3):0.1;
+        c.globalAlpha=ul?(sel?0.7:0.35):0.1;
         c.strokeStyle=ul?color:'#445';c.lineWidth=sel?2.5:1.5;
         for(const[a,b]of layout.lines){
             c.beginPath();c.moveTo(layout.stars[a].x,layout.stars[a].y);
             c.lineTo(layout.stars[b].x,layout.stars[b].y);c.stroke();
         }
-        // Stars - show completed vs not
+        // Stars
         for(let si=0;si<layout.stars.length;si++){
             const lvI=cstLevels[si]?.i;
             const completed=lvI!==undefined&&save.stars[lvI]>0;
-            const unlocked=lvI!==undefined&&lvI<save.unlocked;
+            const unlocked2=lvI!==undefined&&lvI<save.unlocked;
             c.beginPath();c.arc(layout.stars[si].x,layout.stars[si].y,sel?5:3.5,0,Math.PI*2);
-            c.fillStyle=completed?'#ff0':unlocked?'#fff':'#556';c.fill();
+            c.fillStyle=completed?'#ff0':unlocked2?'#fff':'#445';c.fill();
         }
         c.globalAlpha=1;
 
-        // Name
-        c.fillStyle=ul?(sel?'#fff':color):'#445';
-        c.font=Math.max(7,fs*0.45)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-        c.fillText(cstKey.toUpperCase(),cx,cy+cstSize*0.55+6);
-        // Progress
-        const done=cstLevels.filter(({i})=>save.stars[i]>0).length;
-        c.fillStyle='#889';c.font=Math.max(6,fs*0.3)+'px "Press Start 2P"';
-        c.fillText(done+'/'+cstLevels.length+' STARS',cx,cy+cstSize*0.55+6+fs*0.45+4);
+        // Name (bigger, clearer)
+        const nfs=Math.max(8,fs*0.55);
+        c.fillStyle=ul?(sel?'#fff':color):'#556';
+        c.font=nfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+        c.fillText(cstKey.toUpperCase(),cx,cy+cstSize*0.5+10);
 
-        if(sel&&ul){
-            const p=0.4+0.6*Math.sin(time*0.004);
-            c.strokeStyle=`rgba(0,255,200,${p})`;c.lineWidth=2;
-            c.strokeRect(cx-cstSize*0.7,cy-cstSize*0.6,cstSize*1.4,cstSize*1.2+35);
+        // Progress bar
+        const barW=cellW*0.6,barH=6;
+        const barX=cx-barW/2,barY=cy+cstSize*0.5+10+nfs+6;
+        c.fillStyle='#223';c.fillRect(barX,barY,barW,barH);
+        c.fillStyle=allDone?'#0f0':color;c.fillRect(barX,barY,barW*(done/Math.max(1,cstLevels.length)),barH);
+        c.strokeStyle='#556';c.lineWidth=1;c.strokeRect(barX,barY,barW,barH);
+        // Progress text
+        c.fillStyle='#889';c.font=Math.max(5,fs*0.28)+'px "Press Start 2P"';
+        c.fillText(done+'/'+cstLevels.length+(allDone?' ✓':''),cx,barY+barH+3);
+
+        // Lock overlay
+        if(!ul){
+            c.fillStyle='rgba(0,0,20,0.5)';c.fillRect(cx-cellW*0.47,cy-cellH*0.47,cellW*0.94,cellH*0.94);
+            c.fillStyle='#667';c.font='16px "Press Start 2P"';c.textBaseline='middle';c.textAlign='center';
+            c.fillText('🔒',cx,cy);
         }
-        if(!ul){c.fillStyle='#556';c.font=Math.max(12,cstSize*0.2)+'px "Press Start 2P"';c.textBaseline='middle';c.fillText('🔒',cx,cy);}
 
-        nodes.push({x:cx,y:cy,w:cstSize*1.4,h:cstSize*1.2+35,j,ul,cstKey,firstLi});
+        nodes.push({x:cx,y:cy,w:cellW*0.94,h:cellH*0.94,j,ul,cstKey,firstLi});
     }
 
-    // Boss node
+    // Boss node centered below the grid
     if(hasBoss){
         const j=cstList.length;
-        const row=Math.floor(j/cols),col=j%cols;
-        const cx=cellW*(col+0.75),cy=startY+cellH*(row+0.5);
+        const cx=W/2, cy=topOff+gridH+bossH/2+5;
         const ul=bossLi<save.unlocked;
         const sel=j===mapSelConstellation;
-        const nodeR=cstSize*0.3;
+        const nodeR=20;
         const p=0.5+0.5*Math.sin(time*0.005);
+        // Boss background
+        if(sel&&ul){c.fillStyle=`rgba(255,0,0,${0.08+0.05*p})`;c.fillRect(cx-W*0.3,cy-22,W*0.6,44);}
         c.beginPath();c.arc(cx,cy,nodeR,0,Math.PI*2);
-        c.fillStyle=ul?`rgba(255,0,0,${0.3+0.2*p})`:'#1a1a2e';c.fill();
+        c.fillStyle=ul?`rgba(200,0,0,${0.5+0.3*p})`:'#1a1a2e';c.fill();
         c.strokeStyle=ul?(sel?'#ff0':'#f44'):'#445';c.lineWidth=2;c.stroke();
-        c.fillStyle=ul?'#fff':'#556';c.font=Math.max(8,nodeR*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-        c.fillText(ul?'⚠ BOSS':'🔒',cx,cy);
-        c.fillStyle='#f44';c.font=Math.max(6,fs*0.35)+'px "Press Start 2P"';c.textBaseline='top';
-        c.fillText(LEVELS[bossLi].name,cx,cy+nodeR+6);
-        if(sel&&ul){c.strokeStyle=`rgba(255,255,0,${0.4+0.4*p})`;c.lineWidth=2;c.strokeRect(cx-nodeR-10,cy-nodeR-10,nodeR*2+20,nodeR*2+30);}
-        nodes.push({x:cx,y:cy,w:nodeR*2+20,h:nodeR*2+30,j,ul,cstKey:'_boss',firstLi:bossLi,isBoss:true});
+        c.fillStyle=ul?'#fff':'#556';c.font='9px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText(ul?'⚠':'🔒',cx,cy);
+        c.fillStyle=ul?'#f44':'#556';c.font=Math.max(7,fs*0.4)+'px "Press Start 2P"';c.textAlign='center';
+        c.fillText(ul?'BOSS: '+LEVELS[bossLi].name:'BOSS LOCKED',cx-nodeR-30>0?cx+nodeR+8:cx,ul?cy:cy+nodeR+4);
+        if(sel&&ul){c.strokeStyle=`rgba(255,255,0,${0.5+0.5*p})`;c.lineWidth=2;c.beginPath();c.arc(cx,cy,nodeR+6,0,Math.PI*2);c.stroke();}
+        nodes.push({x:cx,y:cy,w:W*0.6,h:44,j,ul,cstKey:'_boss',firstLi:bossLi,isBoss:true});
     }
     renderMap._galaxyNodes=nodes;
 }
@@ -1669,13 +1685,14 @@ function renderConstellationView(time){
     const color=CONSTELLATION_COLORS[cstKey];
     const fs=Math.max(10,Math.min(14,W*0.03));
 
+    const done=cstLevels.filter(({i})=>save.stars[i]>0).length;
     // Title
     c.fillStyle=color;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText('✦ '+cstKey.toUpperCase()+' ✦',W/2,12);
-    c.fillStyle='#889';c.font=(fs*0.4)+'px "Press Start 2P"';
-    c.fillText(CONSTELLATION_NAMES[cstKey]+' · '+cstLevels.length+' STARS',W/2,14+fs+4);
-    c.fillStyle='#ff0';c.font=(fs*0.35)+'px "Press Start 2P"';
-    c.fillText('🪙 '+save.coins,W/2,14+fs+4+fs*0.4+4);
+    c.fillText(cstKey.toUpperCase(),W/2,10);
+    c.fillStyle='#aab';c.font=(fs*0.38)+'px "Press Start 2P"';
+    c.fillText(CONSTELLATION_NAMES[cstKey]+'  ·  '+done+'/'+cstLevels.length+' COMPLETE',W/2,12+fs+2);
+    c.fillStyle='#ff0';c.font=(fs*0.32)+'px "Press Start 2P"';
+    c.fillText('🪙 '+(save.coins||0),W/2,12+fs+2+fs*0.38+4);
 
     // Draw constellation large with each star as a level node
     const topOff=55+fs*2;
