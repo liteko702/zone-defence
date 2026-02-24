@@ -231,6 +231,8 @@ function claimT(){
     if(mult>1)addFT(px,py+(rank?16:0),'x'+mult+' MULTI!','#ff0',11);
     addFT(px,py+(rank?32:16),'+'+pts,'#0f0',9);}
     if(claimAC.length>0){const step=Math.max(1,(claimAC.length/15)|0);for(let i=0;i<claimAC.length;i+=step)sp(claimAC[i].x*CELL+CELL/2,claimAC[i].y*CELL+CELL/2,'#0fa',2,25,0.3);}
+    // Auto-collect power-ups inside claimed territory
+    for(let i=powerups.length-1;i>=0;i--){const p=powerups[i];if(grid[p.y]&&grid[p.y][p.x]===CLAIMED){sfxPow();addFT(p.x*CELL+CELL/2,p.y*CELL-8,p.type.name,'#ff0',10);sp(p.x*CELL+CELL/2,p.y*CELL+CELL/2,p.type.color,15,40,0.4);p.type.effect();powerups.splice(i,1);}}
     if(cNow>20&&Math.random()<0.35)spawnPow();
 }
 function spawnPow(){let px,py,tries=0;do{px=2+Math.floor(Math.random()*(COLS-4));py=2+Math.floor(Math.random()*(ROWS-4));tries++;}while(grid[py][px]!==EMPTY&&tries<50);if(tries>=50)return;powerups.push({x:px,y:py,type:PTYPE[Math.floor(Math.random()*PTYPE.length)],t:0});}
