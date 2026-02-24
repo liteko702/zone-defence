@@ -2368,17 +2368,17 @@ function renderMap(time){
         c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(8,btnY2,btnW+20,btnH);
         c.strokeStyle='#0af';c.lineWidth=1;c.strokeRect(8,btnY2,btnW+20,btnH);
         c.fillStyle='#0af';c.font=Math.max(8,btnH*0.4)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-        c.fillText('◄ BACK',8+(btnW+20)/2,btnY2+btnH/2);
+        c.fillText('◄',8+(btnW+20)/2,btnY2+btnH/2);
         renderMap._backBtn={x:8,y:btnY2,w:btnW+20,h:btnH};
     }
 
     // Hangar button (always)
-    const hbW=Math.max(60,W*0.14),hbH=btnH;
-    const hbX=W-btnW-hbW-18;
+    const hbW=Math.max(70,W*0.18),hbH=btnH;
+    const hbX=W-hbW-8;
     c.fillStyle='rgba(0,0,30,0.8)';c.fillRect(hbX,btnY2,hbW,hbH);
     c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(hbX,btnY2,hbW,hbH);
-    c.fillStyle='#0af';c.font=Math.max(7,hbH*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-    c.fillText('⚙ HANGAR',hbX+hbW/2,btnY2+hbH/2);
+    c.fillStyle='#0af';c.font=Math.max(6,Math.min(9,hbW*0.1))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('HANGAR',hbX+hbW/2,btnY2+hbH/2);
     renderMap._hb={x:hbX,y:btnY2,w:hbW,h:hbH};
 
     // Ship name
@@ -2623,13 +2623,13 @@ function renderHangar(time){
     c.fillStyle='#ff0';c.font=(fs*0.4)+'px "Press Start 2P"';c.textAlign='right';
     c.fillText('🪙 '+(save.coins||0)+'  ★ '+ts,W-12,20);
 
-    // Back button (top-left)
-    const bbW=Math.max(50,W*0.12),bbH=30;
-    c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(6,5,bbW,bbH);
-    c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(6,5,bbW,bbH);
-    c.fillStyle='#0af';c.font=Math.max(8,bbH*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-    c.fillText('◄ BACK',6+bbW/2,5+bbH/2);
-    _hangarBtns.push({x:6,y:5,w:bbW,h:bbH,action:'back'});
+    // Back button (top-left, clear of settings cog)
+    const bbW=32,bbH=30;const bbX=52;
+    c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(bbX,5,bbW,bbH);
+    c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(bbX,5,bbW,bbH);
+    c.fillStyle='#0af';c.font='16px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('◄',bbX+bbW/2,5+bbH/2);
+    _hangarBtns.push({x:bbX,y:5,w:bbW,h:bbH,action:'back'});
 
     // Tabs
     const tabY=44,tabH=28;
@@ -2678,50 +2678,48 @@ function renderHangar(time){
 }
 
 function renderShipsTab(time,cy,ch,fs){
-    // Grid of ship cards on left, detail on right (or top/bottom on portrait)
+    // Horizontal scrollable row of ship cards at top, detail panel below
     const isWide=W>H*1.2;
-    const gridW=isWide?W*0.4:W;
-    const detailX=isWide?gridW:0;
-    const detailW=isWide?W-gridW:W;
-    const detailY=isWide?cy:cy+Math.min(ch*0.35,140);
-    const detailH=isWide?ch:ch-Math.min(ch*0.35,140);
-    const gridH=isWide?ch:Math.min(ch*0.35,140);
-
-    // Ship grid
-    const cols=isWide?2:3;
-    const cardW=Math.min(80,(gridW-20)/cols-8);
-    const cardH=cardW+20;
-    const startX=(isWide?0:W/2)-((cols*cardW+(cols-1)*8)/2);
+    const cardH2=isWide?ch*0.3:70; // card row height
+    const cardW=Math.max(55,Math.min(70,W/SHIPS.length-6));
+    const totalCardsW=SHIPS.length*(cardW+6)-6;
+    const startX=Math.max(6,(W-totalCardsW)/2);
+    const cardRowY=cy+4;
 
     for(let i=0;i<SHIPS.length;i++){
         const sh=SHIPS[i];const owned=isShipOwned(i);const starOk=totalStars()>=sh.starsNeeded;
-        const col2=i%cols,row=Math.floor(i/cols);
-        const cx2=startX+col2*(cardW+8)+cardW/2;
-        const cy2=cy+8+row*(cardH+6)+cardH/2;
-        if(cy2+cardH/2>cy+gridH)continue;
+        const cx2=startX+i*(cardW+6)+cardW/2;
+        const cy2=cardRowY+cardH2/2;
         const sel=i===hangarSel;
 
         // Card bg
         c.fillStyle=sel?'rgba(0,80,150,0.5)':'rgba(0,0,30,0.7)';
-        c.fillRect(cx2-cardW/2,cy2-cardH/2,cardW,cardH);
-        c.strokeStyle=i===curShip?'#0f0':sel?'#0af':owned?'#335':'#223';
-        c.lineWidth=sel?2:1;c.strokeRect(cx2-cardW/2,cy2-cardH/2,cardW,cardH);
+        c.fillRect(cx2-cardW/2,cardRowY,cardW,cardH2);
+        c.strokeStyle=i===curShip?'#0f0':sel?'#0af':owned?'#446':'#223';
+        c.lineWidth=sel?2.5:1;c.strokeRect(cx2-cardW/2,cardRowY,cardW,cardH2);
 
         // Mini ship
+        const shipSize=Math.min(cardW*0.35,cardH2*0.35);
         if(owned||starOk){
-            drawShipDetailed(c,sh,cx2,cy2-8,cardW*0.28,time);
+            drawShipDetailed(c,sh,cx2,cy2-6,shipSize,time);
         }else{
-            c.globalAlpha=0.3;drawShipDetailed(c,sh,cx2,cy2-8,cardW*0.28,time);c.globalAlpha=1;
-            c.fillStyle='#556';c.font=Math.max(12,cardW*0.2)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-            c.fillText('🔒',cx2,cy2-8);
+            c.globalAlpha=0.3;drawShipDetailed(c,sh,cx2,cy2-6,shipSize,time);c.globalAlpha=1;
+            c.fillStyle='#556';c.font='10px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('🔒',cx2,cy2-6);
         }
         // Name
         c.fillStyle=owned?'#0af':starOk?'#ff0':'#556';
-        c.font=Math.max(5,cardW*0.09)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
-        c.fillText(sh.name,cx2,cy2+cardH/2-3);
+        c.font=Math.max(5,Math.min(7,cardW*0.1))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+        c.fillText(sh.name,cx2,cardRowY+cardH2-3);
 
-        _hangarBtns.push({x:cx2-cardW/2,y:cy2-cardH/2,w:cardW,h:cardH,action:'ship',idx:i});
+        _hangarBtns.push({x:cx2-cardW/2,y:cardRowY,w:cardW,h:cardH2,action:'ship',idx:i});
     }
+
+    // Detail panel takes remaining space
+    const detailX=6;
+    const detailY=cardRowY+cardH2+8;
+    const detailW=W-12;
+    const detailH=ch-cardH2-16;
 
     // Detail panel
     const sh=SHIPS[hangarSel];const owned=isShipOwned(hangarSel);
