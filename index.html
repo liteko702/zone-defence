@@ -61,7 +61,7 @@
         <button class="b bg" id="b-how-ok">GOT IT!</button>
     </div>
     <div class="scr" id="s-lvl"><h2 id="l-title">SECTOR 1</h2><p id="l-desc"></p><button class="b bg" id="b-go">▶ ENGAGE</button></div>
-    <div class="scr" id="s-die"><h2 style="color:#f44">⚠ SHIELDS DOWN</h2><p class="st" id="d-info"></p><button class="b" id="b-cont">CONTINUE</button></div>
+    <div class="scr" id="s-die"><h2 style="color:#f44">💔 LIFE LOST</h2><p class="st" id="d-info"></p><button class="b" id="b-cont">CONTINUE</button></div>
     <div class="scr" id="s-over"><h2 style="color:#f44">GAME OVER</h2><p class="st" id="o-sc"></p><p class="st" id="o-info"></p><button class="b br" id="b-retry">RETRY</button><button class="b" id="b-map1">MAP</button></div>
     <div class="scr" id="s-win"><h2 style="color:#0f0">★ SECTOR CLEAR ★</h2><p class="st" id="w-sc"></p><p class="st" id="w-info"></p><div id="w-st" style="font-size:clamp(16px,4vw,24px);color:#ff0"></div><button class="b bg" id="b-next">NEXT ▶</button><button class="b" id="b-map2">MAP</button></div>
     <div class="scr" id="s-done"><h1 style="color:#ff0">★ COMPLETE ★</h1><p class="st" id="c-sc"></p><button class="b bg" id="b-again">NEW GAME</button></div>
@@ -155,10 +155,10 @@ let shakeA=0,shakeD=0,claimAC=[],claimAT=0;
 let powerups=[],playerSpeed=8,trailSpeed=6,shieldTimer=0;
 
 const PTYPE=[
-{name:'SPEED',color:'#0ff',effect:()=>{playerSpeed=12;trailSpeed=9;}},
-{name:'SHIELD',color:'#ff0',effect:()=>{shieldTimer=4;}},
-{name:'+1 LIFE',color:'#f44',effect:()=>{lives=Math.min(lives+1,LEVELS[curLv].lives+2);}},
-{name:'SLOW',color:'#a0f',effect:()=>{for(const e of enemies)e.origSpeed=e.speed,e.speed*=0.5;}},
+{name:'SPEED',color:'#0ff',icon:'>>',effect:()=>{playerSpeed=12;trailSpeed=9;}},
+{name:'SHIELD',color:'#ff0',icon:'()',effect:()=>{shieldTimer=4;}},
+{name:'+1 LIFE',color:'#f44',icon:'♥',effect:()=>{lives=Math.min(lives+1,LEVELS[curLv].lives+2);}},
+{name:'SLOW',color:'#a0f',icon:'~~',effect:()=>{for(const e of enemies)e.origSpeed=e.speed,e.speed*=0.5;}},
 ];
 
 // ===== INPUT =====
@@ -189,7 +189,12 @@ function initG(){
 function cAt(x,y){if(x<0||x>=COLS||y<0||y>=ROWS)return BORDER;return grid[y][x];}
 
 function claimT(){
-    const tLen=trail.length;for(const t of trail)grid[t.y][t.x]=CLAIMED;trail=[];
+    const tLen=trail.length;
+    // Step 1: Mark trail as TRAIL barrier (keep as TRAIL for flood fill wall)
+    // Trail cells are already TRAIL in the grid — just keep them, don't clear yet
+    const trailCells=trail.slice();
+    trail=[];
+    // Step 2: Flood fill to find EMPTY regions (TRAIL acts as barrier like BORDER/CLAIMED)
     const vis=Array.from({length:ROWS},()=>new Uint8Array(COLS));const regs=[];
     for(let r=1;r<ROWS-1;r++)for(let cc=1;cc<COLS-1;cc++){
         if(grid[r][cc]!==EMPTY||vis[r][cc])continue;
@@ -198,8 +203,19 @@ function claimT(){
         for(const[dx,dy]of[[0,-1],[0,1],[-1,0],[1,0]]){const nx=x+dx,ny=y+dy;if(nx<1||nx>=COLS-1||ny<1||ny>=ROWS-1||vis[ny][nx]||grid[ny][nx]!==EMPTY)continue;vis[ny][nx]=1;q.push({x:nx,y:ny});}}
         regs.push({cells:reg,hasE});
     }
+    // Step 3: Convert trail cells to CLAIMED
+    for(const t of trailCells)grid[t.y][t.x]=CLAIMED;
     claimAC=[];let cNow=0;
-    for(const reg of regs)if(!reg.hasE){for(const{x,y}of reg.cells){grid[y][x]=CLAIMED;claimAC.push({x,y});}cNow+=reg.cells.length;}
+    // Claim all regions WITHOUT enemies (classic Qix behavior)
+    const noE=regs.filter(r=>!r.hasE);
+    if(noE.length>0){
+        for(const reg of noE){for(const{x,y}of reg.cells){grid[y][x]=CLAIMED;claimAC.push({x,y});}cNow+=reg.cells.length;}
+    }else if(regs.length>1){
+        // All regions have enemies — claim the smallest one
+        regs.sort((a,b)=>a.cells.length-b.cells.length);
+        const smallest=regs[0];
+        for(const{x,y}of smallest.cells){grid[y][x]=CLAIMED;claimAC.push({x,y});}cNow+=smallest.cells.length;
+    }
     claimAT=0.4;claimedC=0;for(let r=1;r<ROWS-1;r++)for(let cc=1;cc<COLS-1;cc++)if(grid[r][cc]===CLAIMED)claimedC++;
     const pts=tLen*10+cNow*5;score+=pts;sfxClaim();
     if(cNow>0){const px=player.x*CELL+CELL/2,py=player.y*CELL-10;
@@ -224,11 +240,19 @@ function moveP(dt){
     const dc=cAt(nx,ny);
     if(player.cutting){
         if(dc===TRAIL){if(shieldTimer>0){shieldTimer=0;}else{killP();return;}}
-        else if(dc===BORDER||dc===CLAIMED){player.x=nx;player.y=ny;player.cutting=false;claimT();checkWin();return;}
+        else if(dc===BORDER||dc===CLAIMED){
+            // Record final trail cell before reaching border
+            trail.push({x:player.x,y:player.y});grid[player.y][player.x]=TRAIL;
+            player.x=nx;player.y=ny;player.cutting=false;claimT();checkWin();return;
+        }
         else{trail.push({x:player.x,y:player.y});grid[player.y][player.x]=TRAIL;player.x=nx;player.y=ny;}
     }else{
         if(dc===BORDER||dc===CLAIMED){player.x=nx;player.y=ny;}
-        else if(dc===EMPTY){trail.push({x:player.x,y:player.y});player.cutting=true;player.x=nx;player.y=ny;}
+        else if(dc===EMPTY){
+            // Record starting border cell as trail
+            trail.push({x:player.x,y:player.y});grid[player.y][player.x]=TRAIL;
+            player.cutting=true;player.x=nx;player.y=ny;
+        }
     }
     player.dir=inputDir;moveCt++;if(moveCt%4===0)sfxMove();checkPow();
 }
@@ -359,10 +383,19 @@ function render(time){
     // Trail glow
     if(trail.length>1){c.strokeStyle='rgba(0,255,170,0.15)';c.lineWidth=CELL+4;c.beginPath();c.moveTo(trail[0].x*CELL+CELL/2,trail[0].y*CELL+CELL/2);for(let i=1;i<trail.length;i++)c.lineTo(trail[i].x*CELL+CELL/2,trail[i].y*CELL+CELL/2);if(player.cutting)c.lineTo(player.x*CELL+CELL/2,player.y*CELL+CELL/2);c.stroke();}
 
-    // Power-ups
+    // Power-ups with icons
     for(const p of powerups){p.t+=0.016;const px=p.x*CELL+CELL/2,py=p.y*CELL+CELL/2,bob=Math.sin(p.t*3)*3;
-    c.beginPath();c.arc(px,py+bob,CELL*0.6,0,Math.PI*2);c.fillStyle=p.type.color+'44';c.fill();
-    c.fillStyle=p.type.color;c.beginPath();c.arc(px,py+bob,CELL*0.35,0,Math.PI*2);c.fill();}
+    const pulse=0.7+0.3*Math.sin(p.t*5);
+    // Outer glow
+    c.beginPath();c.arc(px,py+bob,CELL*1.2,0,Math.PI*2);c.fillStyle=p.type.color+'15';c.fill();
+    // Background circle
+    c.beginPath();c.arc(px,py+bob,CELL*0.8,0,Math.PI*2);c.fillStyle='rgba(0,0,20,0.8)';c.fill();
+    c.strokeStyle=p.type.color;c.lineWidth=1.5*pulse;c.stroke();
+    // Icon text
+    c.fillStyle=p.type.color;c.font='bold '+Math.max(8,CELL*0.7)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillText(p.type.icon,px,py+bob);
+    // Label below
+    c.font=Math.max(5,CELL*0.4)+'px "Press Start 2P"';c.fillText(p.type.name,px,py+bob+CELL*1.2);}
 
     // Enemies
     for(const e of enemies){const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2;
@@ -504,7 +537,7 @@ let lt=0;
 function loop(time){
     const dt=Math.min((time-lt)/1000,0.05);lt=time;
     if(state==='playing'){moveP(dt);moveE(dt);updateHUD();if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>8){playerSpeed-=dt*0.8;if(playerSpeed<=8){playerSpeed=8;trailSpeed=6;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();}
-    if(state==='dying'){deathT-=dt;if(deathT<=0){document.getElementById('d-info').textContent=`${lives} SHIELD${lives===1?'':'S'} - ${getPct()}% CLAIMED`;showScr('s-die');state='dead_pause';}}
+    if(state==='dying'){deathT-=dt;if(deathT<=0){document.getElementById('d-info').textContent=`${lives} ♥ LEFT - ${getPct()}% CLAIMED`;showScr('s-die');state='dead_pause';}}
     if(claimAT>0)claimAT-=dt;if(shakeD>0)shakeD-=dt;
     upP(dt);upFT(dt);
     if(state==='map')renderMap(time);else render(time);
