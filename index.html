@@ -403,12 +403,14 @@ function getMusicKey(scene){
     return null;
 }
 
+// Per-SFX volume levels
+const SFX_VOLUME={sfx_shoot:0.1,sfx_hit:0.3,sfx_claim:0.4,sfx_bigclaim:0.5,sfx_capture:0.5,sfx_powerup:0.45,sfx_shield:0.35,sfx_phase:0.35,sfx_split:0.35,sfx_respawn:0.4,sfx_select:0.4,sfx_start:0.5,sfx_star:0.45,sfx_death:0.5};
 // Play a one-shot SFX file (if available, else use synth fallback)
 function playSfx(key){
     if(!musicOn)return false;
     if(audioAvailable[key]&&audioCache[key]){
         const sfx=audioCache[key].cloneNode();
-        sfx.volume=0.5;sfx.play().catch(()=>{});
+        sfx.volume=SFX_VOLUME[key]??0.4;sfx.play().catch(()=>{});
         return true;
     }
     return false; // caller should use synth fallback
