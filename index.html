@@ -30,12 +30,16 @@
         #hud .hg{display:flex;gap:8px;align-items:center}
         .hl{color:#68a}.hv{color:#0ff}.hs{color:#ff0}.hlv{color:#f44;letter-spacing:2px}
         #hp{pointer-events:auto;cursor:pointer;color:#0af;font-size:12px;background:none;border:1px solid #0af;padding:2px 8px;font-family:inherit;touch-action:manipulation}
-        #dp{display:none;position:fixed;bottom:12px;left:12px;z-index:20;pointer-events:auto}
-        .db{position:absolute;width:50px;height:50px;background:rgba(0,150,255,0.12);border:2px solid rgba(0,150,255,0.35);border-radius:10px;display:flex;align-items:center;justify-content:center;color:rgba(0,200,255,0.6);font-size:18px;touch-action:none;user-select:none;-webkit-user-select:none}
-        .db.pr{background:rgba(0,150,255,0.35);border-color:#0af}
-        #du{left:54px;top:0}#dd{left:54px;top:104px}#dl{left:0;top:52px}#dr{left:108px;top:52px}
+        #dp{display:none;position:fixed;z-index:20;pointer-events:auto;--bs:58px;--gap:4px;bottom:calc(var(--bs) + var(--gap) + max(8px,env(safe-area-inset-bottom,4px)));left:10px;width:calc(var(--bs)*3 + var(--gap)*2);height:calc(var(--bs)*3 + var(--gap)*2)}
+        .db{position:absolute;width:var(--bs);height:var(--bs);background:rgba(0,150,255,0.18);border:2px solid rgba(0,150,255,0.45);border-radius:12px;display:flex;align-items:center;justify-content:center;color:rgba(0,200,255,0.75);font-size:22px;touch-action:none;user-select:none;-webkit-user-select:none}
+        .db.pr{background:rgba(0,150,255,0.45);border-color:#0af}
+        #du{left:calc(var(--bs) + var(--gap));top:0}
+        #dd{left:calc(var(--bs) + var(--gap));bottom:0}
+        #dl{left:0;top:calc(var(--bs) + var(--gap))}
+        #dr{right:0;top:calc(var(--bs) + var(--gap))}
         @media(pointer:coarse),(max-width:900px){#dp{display:block}}
-        #fs{position:fixed;bottom:12px;right:12px;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:16px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1}
+        @media(max-height:500px){#dp{--bs:44px}}
+        #fs{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,8px));right:12px;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:16px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1}
         #pov{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:30;flex-direction:column;align-items:center;justify-content:center;gap:10px}
         #pov.v{display:flex}
         #pov h2{color:#ff0;font-size:clamp(14px,4vw,20px);text-shadow:2px 2px #840;margin-bottom:8px}
@@ -184,6 +188,29 @@ let dD=null;
     el.addEventListener('touchend',e=>{e.preventDefault();if(dD===dir)dD=null;el.classList.remove('pr');},{passive:false});
     el.addEventListener('touchcancel',e=>{e.preventDefault();if(dD===dir)dD=null;el.classList.remove('pr');},{passive:false});
 });
+// Swipe controls on canvas — swipe to set direction, tap to stop
+let swSx=0,swSy=0,swId=null;
+cv.addEventListener('touchstart',e=>{
+    if(state!=='playing')return;
+    const t=e.changedTouches[0];
+    // Ignore if touch is on d-pad area
+    const dp=document.getElementById('dp').getBoundingClientRect();
+    if(t.clientX>=dp.left-10&&t.clientX<=dp.right+10&&t.clientY>=dp.top-10&&t.clientY<=dp.bottom+10)return;
+    swSx=t.clientX;swSy=t.clientY;swId=t.identifier;
+},{passive:true});
+cv.addEventListener('touchmove',e=>{
+    if(state!=='playing'||swId===null)return;
+    for(const t of e.changedTouches){
+        if(t.identifier!==swId)continue;
+        const dx=t.clientX-swSx,dy=t.clientY-swSy,dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist>15){
+            if(Math.abs(dx)>Math.abs(dy))dD=dx>0?'right':'left';
+            else dD=dy>0?'down':'up';
+            swSx=t.clientX;swSy=t.clientY;
+        }
+    }
+},{passive:true});
+cv.addEventListener('touchend',e=>{for(const t of e.changedTouches)if(t.identifier===swId)swId=null;},{passive:true});
 
 // ===== FULLSCREEN =====
 document.getElementById('fs').onclick=()=>{
