@@ -217,12 +217,19 @@ function claimT(){
         for(const{x,y}of smallest.cells){grid[y][x]=CLAIMED;claimAC.push({x,y});}cNow+=smallest.cells.length;
     }
     claimAT=0.4;claimedC=0;for(let r=1;r<ROWS-1;r++)for(let cc=1;cc<COLS-1;cc++)if(grid[r][cc]===CLAIMED)claimedC++;
-    const pts=tLen*10+cNow*5;score+=pts;sfxClaim();
+    // Risk-reward multiplier based on % of remaining area claimed in one cut
+    const cutPct=totalC>0?(cNow/totalC*100):0;
+    let mult=1,rank='',rankCol='#0af';
+    if(cutPct>=30){mult=5;rank='LEGENDARY!';rankCol='#f0f';}
+    else if(cutPct>=20){mult=4;rank='AMAZING!';rankCol='#ff0';}
+    else if(cutPct>=12){mult=3;rank='GREAT!';rankCol='#0ff';}
+    else if(cutPct>=5){mult=2;rank='GOOD!';rankCol='#0fa';}
+    const base=tLen*10+cNow*5;const pts=base*mult;score+=pts;sfxClaim();
+    if(mult>=3)for(let i=0;i<3;i++)setTimeout(()=>beep(600+i*150,0.1,'square',0.06),i*60);
     if(cNow>0){const px=player.x*CELL+CELL/2,py=player.y*CELL-10;
-    if(cNow>200)addFT(px,py,'AMAZING!','#ff0',12);
-    else if(cNow>100)addFT(px,py,'GREAT!','#0ff',11);
-    else if(cNow>30)addFT(px,py,'GOOD!','#0af',10);
-    addFT(px,py+16,'+'+pts,'#0f0',9);}
+    if(rank)addFT(px,py,rank,rankCol,mult>=4?14:mult>=3?12:10);
+    if(mult>1)addFT(px,py+(rank?16:0),'x'+mult+' MULTI!','#ff0',11);
+    addFT(px,py+(rank?32:16),'+'+pts,'#0f0',9);}
     if(claimAC.length>0){const step=Math.max(1,(claimAC.length/15)|0);for(let i=0;i<claimAC.length;i+=step)sp(claimAC[i].x*CELL+CELL/2,claimAC[i].y*CELL+CELL/2,'#0fa',2,25,0.3);}
     if(cNow>20&&Math.random()<0.35)spawnPow();
 }
