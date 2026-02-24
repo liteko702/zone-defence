@@ -78,7 +78,7 @@
     <div class="scr" id="s-lvl"><h2 id="l-title">SECTOR 1</h2><p id="l-desc"></p><button class="b bg" id="b-go">▶ ENGAGE</button></div>
     <div class="scr" id="s-die"><h2 style="color:#f44">💔 LIFE LOST</h2><p class="st" id="d-info"></p><button class="b" id="b-cont">CONTINUE</button></div>
     <div class="scr" id="s-over"><h2 style="color:#f44">GAME OVER</h2><p class="st" id="o-sc"></p><p class="st" id="o-info"></p><button class="b br" id="b-retry">RETRY</button><button class="b" id="b-map1">MAP</button></div>
-    <div class="scr" id="s-win"><h2 style="color:#0f0">★ SECTOR CLEAR ★</h2><p class="st" id="w-sc"></p><p class="st" id="w-info"></p><div id="w-st" style="font-size:clamp(16px,4vw,24px);color:#ff0"></div><button class="b bg" id="b-next">NEXT ▶</button><button class="b" id="b-map2">MAP</button></div>
+    <div class="scr" id="s-win"><h2 style="color:#0f0">★ SECTOR CLEAR ★</h2><p class="st" id="w-sc"></p><p class="st" id="w-info"></p><div id="w-st" style="font-size:clamp(16px,4vw,24px);color:#ff0"></div><button class="b bg" id="b-next">NEXT ▶</button><div style="display:flex;gap:8px"><button class="b" id="b-map2">MAP</button><button class="b" id="b-win-hangar">⚙ HANGAR</button></div></div>
     <div class="scr" id="s-done"><h1 style="color:#ff0">★ COMPLETE ★</h1><p class="st" id="c-sc"></p><button class="b bg" id="b-again">NEW GAME</button></div>
     <!-- Hangar is now rendered on canvas -->
 </div>
@@ -1335,254 +1335,441 @@ function checkCaptureKills(){
 }
 
 // ===== SHIP DRAWING =====
+// Helper: draw a symmetric wing pair using bezier curves for smooth sci-fi look
+function _wing(s,pts,col){
+    c.fillStyle=col;
+    // Left wing
+    c.beginPath();
+    for(let i=0;i<pts.length;i++){
+        const[x,y]=pts[i];
+        if(i===0)c.moveTo(-x*s,y*s);else c.lineTo(-x*s,y*s);
+    }
+    c.closePath();c.fill();
+    // Right wing (mirror)
+    c.beginPath();
+    for(let i=0;i<pts.length;i++){
+        const[x,y]=pts[i];
+        if(i===0)c.moveTo(x*s,y*s);else c.lineTo(x*s,y*s);
+    }
+    c.closePath();c.fill();
+}
+
 function drawShip(px,py,rot,cutting,time,shipIdx){
     const sh=SHIPS[shipIdx!==undefined?shipIdx:curShip];
     c.save();c.translate(px,py);c.rotate(rot-Math.PI/2);
-    const s=Math.max(CELL*1.5,12);const fl=0.6+0.4*Math.sin(time*0.015);
-    // Engine exhaust glow
-    const eg=c.createRadialGradient(0,s*0.6,0,0,s*0.6,s*0.9);
-    eg.addColorStop(0,cutting?'rgba(0,255,180,0.6)':'rgba(50,150,255,0.6)');
-    eg.addColorStop(0.5,cutting?'rgba(0,255,120,0.2)':'rgba(30,100,255,0.2)');
+    const s=Math.max(CELL*1.8,14);const fl=0.5+0.5*Math.sin(time*0.015);
+    const c1=sh.color1,c2=sh.color2;
+
+    // === ENGINE EXHAUST ===
+    // Main thruster glow
+    const eg=c.createRadialGradient(0,s*0.5,0,0,s*0.55,s*0.7);
+    eg.addColorStop(0,cutting?'rgba(0,255,180,0.5)':'rgba(80,160,255,0.5)');
     eg.addColorStop(1,'transparent');
-    c.fillStyle=eg;c.beginPath();c.arc(0,s*0.6,s*0.9*fl,0,Math.PI*2);c.fill();
-    // Engine flames
-    c.fillStyle=cutting?'rgba(0,255,200,0.9)':'rgba(80,180,255,0.9)';
-    c.beginPath();c.moveTo(-s*0.12,s*0.3);c.lineTo(-s*0.06,s*(0.6+0.2*fl));c.lineTo(0,s*0.3);c.fill();
-    c.beginPath();c.moveTo(0,s*0.3);c.lineTo(s*0.06,s*(0.55+0.15*fl));c.lineTo(s*0.12,s*0.3);c.fill();
-    // Wings — shaped differently per ship
-    const wc=cutting?sh.color1:sh.color1;const wh=cutting?sh.color2:sh.color2;
-    c.fillStyle=wc;
-    if(sh.id==='titan'){
-        // Wide heavy wings
-        c.beginPath();c.moveTo(-s*0.12,s*0.1);c.lineTo(-s*0.8,s*0.4);c.lineTo(-s*0.85,s*0.25);c.lineTo(-s*0.4,0);c.lineTo(-s*0.15,-s*0.1);c.closePath();c.fill();
-        c.beginPath();c.moveTo(s*0.12,s*0.1);c.lineTo(s*0.8,s*0.4);c.lineTo(s*0.85,s*0.25);c.lineTo(s*0.4,0);c.lineTo(s*0.15,-s*0.1);c.closePath();c.fill();
-    }else if(sh.id==='phantom'){
-        // Sleek swept wings
-        c.beginPath();c.moveTo(-s*0.08,s*0.05);c.lineTo(-s*0.55,s*0.5);c.lineTo(-s*0.5,s*0.3);c.lineTo(-s*0.2,-s*0.2);c.closePath();c.fill();
-        c.beginPath();c.moveTo(s*0.08,s*0.05);c.lineTo(s*0.55,s*0.5);c.lineTo(s*0.5,s*0.3);c.lineTo(s*0.2,-s*0.2);c.closePath();c.fill();
-    }else if(sh.id==='nova'){
-        // Sharp angular wings
-        c.beginPath();c.moveTo(-s*0.1,0);c.lineTo(-s*0.75,s*0.3);c.lineTo(-s*0.7,s*0.15);c.lineTo(-s*0.3,-s*0.15);c.closePath();c.fill();
-        c.beginPath();c.moveTo(s*0.1,0);c.lineTo(s*0.75,s*0.3);c.lineTo(s*0.7,s*0.15);c.lineTo(s*0.3,-s*0.15);c.closePath();c.fill();
-        // Extra fin
-        c.fillStyle=sh.color2;
-        c.beginPath();c.moveTo(0,-s*0.5);c.lineTo(-s*0.06,-s*0.15);c.lineTo(s*0.06,-s*0.15);c.closePath();c.fill();
-    }else if(sh.id==='pulse'){
-        // Rounded wings with gun pods
-        c.beginPath();c.moveTo(-s*0.1,s*0.05);c.lineTo(-s*0.6,s*0.35);c.lineTo(-s*0.65,s*0.2);c.lineTo(-s*0.3,-s*0.05);c.closePath();c.fill();
-        c.beginPath();c.moveTo(s*0.1,s*0.05);c.lineTo(s*0.6,s*0.35);c.lineTo(s*0.65,s*0.2);c.lineTo(s*0.3,-s*0.05);c.closePath();c.fill();
-        // Gun pods
-        c.fillStyle=sh.color2;
-        c.beginPath();c.arc(-s*0.55,s*0.25,s*0.08,0,Math.PI*2);c.fill();
-        c.beginPath();c.arc(s*0.55,s*0.25,s*0.08,0,Math.PI*2);c.fill();
-    }else{
-        // Default viper wings
-        c.beginPath();c.moveTo(-s*0.1,s*0.05);c.lineTo(-s*0.65,s*0.45);c.lineTo(-s*0.7,s*0.35);c.lineTo(-s*0.35,s*0.05);c.lineTo(-s*0.15,-s*0.15);c.closePath();c.fill();
-        c.beginPath();c.moveTo(s*0.1,s*0.05);c.lineTo(s*0.65,s*0.45);c.lineTo(s*0.7,s*0.35);c.lineTo(s*0.35,s*0.05);c.lineTo(s*0.15,-s*0.15);c.closePath();c.fill();
+    c.fillStyle=eg;c.beginPath();c.arc(0,s*0.55,s*0.65*fl,0,Math.PI*2);c.fill();
+    // Main flame
+    const fc=cutting?['rgba(200,255,240,0.95)','rgba(0,255,180,0.7)','rgba(0,100,80,0.2)']:['rgba(200,220,255,0.95)','rgba(80,160,255,0.7)','rgba(20,60,150,0.2)'];
+    const fLen=s*(0.4+0.25*fl);
+    const fg=c.createLinearGradient(0,s*0.25,0,s*0.25+fLen);
+    fg.addColorStop(0,fc[0]);fg.addColorStop(0.4,fc[1]);fg.addColorStop(1,fc[2]);
+    c.fillStyle=fg;
+    c.beginPath();c.moveTo(-s*0.08,s*0.25);c.quadraticCurveTo(-s*0.04,s*0.25+fLen*0.7,0,s*0.25+fLen);
+    c.quadraticCurveTo(s*0.04,s*0.25+fLen*0.7,s*0.08,s*0.25);c.fill();
+    // Side thrusters
+    if(sh.id!=='viper'){
+        for(const sx2 of[-1,1]){
+            const tx=sx2*s*0.35,ty=s*0.2;
+            c.fillStyle=fc[1];c.beginPath();
+            c.moveTo(tx-s*0.02,ty);c.lineTo(tx,ty+fLen*0.4);c.lineTo(tx+s*0.02,ty);c.fill();
+        }
     }
-    // Wing tips
-    c.fillStyle=wh;c.fillRect(-s*0.7,s*0.33,s*0.12,s*0.04);c.fillRect(s*0.58,s*0.33,s*0.12,s*0.04);
-    // Wing engines
-    c.fillStyle=cutting?'rgba(0,255,200,0.7)':'rgba(80,180,255,0.7)';
-    c.beginPath();c.arc(-s*0.55,s*0.42,s*0.06*fl,0,Math.PI*2);c.fill();
-    c.beginPath();c.arc(s*0.55,s*0.42,s*0.06*fl,0,Math.PI*2);c.fill();
-    // Body hull
-    const bg=c.createLinearGradient(0,-s*0.9,0,s*0.3);
-    bg.addColorStop(0,sh.color2);bg.addColorStop(0.3,sh.color1);bg.addColorStop(1,'#135');
-    c.fillStyle=bg;
-    c.beginPath();c.moveTo(0,-s*0.85);c.lineTo(-s*0.18,s*0.0);c.lineTo(-s*0.15,s*0.3);
-    c.lineTo(s*0.15,s*0.3);c.lineTo(s*0.18,s*0.0);c.closePath();c.fill();
-    // Hull detail lines
-    c.strokeStyle=cutting?'rgba(0,255,200,0.3)':'rgba(100,200,255,0.3)';c.lineWidth=0.5;
-    c.beginPath();c.moveTo(-s*0.1,-s*0.2);c.lineTo(-s*0.12,s*0.2);c.stroke();
-    c.beginPath();c.moveTo(s*0.1,-s*0.2);c.lineTo(s*0.12,s*0.2);c.stroke();
-    // Cockpit
-    const cg=c.createRadialGradient(0,-s*0.35,0,0,-s*0.35,s*0.12);
-    cg.addColorStop(0,'rgba(255,255,255,0.9)');cg.addColorStop(0.4,cutting?'#0ff':'#8ef');cg.addColorStop(1,cutting?'#088':'#46a');
-    c.fillStyle=cg;c.beginPath();c.ellipse(0,-s*0.35,s*0.07,s*0.11,0,0,Math.PI*2);c.fill();
+
+    // === PER-SHIP HULL ===
+    if(sh.id==='viper'){
+        // VIPER: Sleek interceptor — long nose, delta wings, no weapons
+        // Wings — swept delta
+        _wing(s,[[0.08,0.05],[0.65,0.3],[0.7,0.18],[0.6,0.05],[0.45,-0.15],[0.15,-0.2]],c1);
+        // Wing surface detail
+        _wing(s,[[0.2,0.02],[0.5,0.2],[0.55,0.12],[0.3,-0.05]],c2+'60');
+        // Fuselage — long sleek
+        const bg=c.createLinearGradient(0,-s*0.9,0,s*0.25);
+        bg.addColorStop(0,c2);bg.addColorStop(0.25,'#fff3');bg.addColorStop(0.35,c1);bg.addColorStop(1,'#0a1a30');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.95);c.bezierCurveTo(-s*0.06,-s*0.7,-s*0.14,-s*0.1,-s*0.12,s*0.25);
+        c.lineTo(s*0.12,s*0.25);c.bezierCurveTo(s*0.14,-s*0.1,s*0.06,-s*0.7,0,-s*0.95);c.fill();
+        // Hull panel lines
+        c.strokeStyle=c2+'50';c.lineWidth=0.7;
+        c.beginPath();c.moveTo(-s*0.08,-s*0.5);c.lineTo(-s*0.1,s*0.15);c.stroke();
+        c.beginPath();c.moveTo(s*0.08,-s*0.5);c.lineTo(s*0.1,s*0.15);c.stroke();
+        c.beginPath();c.moveTo(-s*0.04,-s*0.3);c.lineTo(s*0.04,-s*0.3);c.stroke();
+    }else if(sh.id==='striker'){
+        // STRIKER: Combat fighter — angular, weapon pods on wings
+        _wing(s,[[0.1,0.1],[0.7,0.35],[0.75,0.15],[0.65,-0.05],[0.4,-0.15],[0.12,-0.1]],c1);
+        _wing(s,[[0.25,0.05],[0.55,0.22],[0.6,0.1],[0.35,-0.05]],'#fff1');
+        // Weapon pods
+        for(const sx2 of[-1,1]){
+            c.fillStyle='#334';c.beginPath();
+            c.roundRect(sx2*s*0.5-s*0.04,-s*0.1,s*0.08,s*0.22,2);c.fill();
+            c.fillStyle='#ff04';c.beginPath();c.arc(sx2*s*0.5,-s*0.1,s*0.025,0,Math.PI*2);c.fill();
+        }
+        // Fuselage
+        const bg=c.createLinearGradient(0,-s*0.85,0,s*0.25);
+        bg.addColorStop(0,c2);bg.addColorStop(0.2,'#fff2');bg.addColorStop(0.4,c1);bg.addColorStop(1,'#1a0a0a');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.85);c.bezierCurveTo(-s*0.08,-s*0.6,-s*0.16,0,-s*0.13,s*0.25);
+        c.lineTo(s*0.13,s*0.25);c.bezierCurveTo(s*0.16,0,s*0.08,-s*0.6,0,-s*0.85);c.fill();
+        c.strokeStyle=c2+'40';c.lineWidth=0.6;
+        c.beginPath();c.moveTo(0,-s*0.6);c.lineTo(0,s*0.15);c.stroke();
+    }else if(sh.id==='phantom'){
+        // PHANTOM: Stealth cutter — curved wings, dark, fast trail
+        _wing(s,[[0.06,0.08],[0.55,0.4],[0.6,0.25],[0.5,0.1],[0.35,-0.15],[0.1,-0.25]],c1);
+        // Stealth wing edges
+        c.strokeStyle=c2+'80';c.lineWidth=1;
+        for(const sx2 of[-1,1]){
+            c.beginPath();c.moveTo(sx2*s*0.06,s*0.08);c.quadraticCurveTo(sx2*s*0.4,s*0.35,sx2*s*0.55,s*0.4);c.stroke();
+        }
+        // Fuselage — compact, dark
+        const bg=c.createLinearGradient(0,-s*0.8,0,s*0.2);
+        bg.addColorStop(0,c2);bg.addColorStop(0.3,c1);bg.addColorStop(1,'#100820');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.82);c.bezierCurveTo(-s*0.07,-s*0.5,-s*0.12,0,-s*0.1,s*0.22);
+        c.lineTo(s*0.1,s*0.22);c.bezierCurveTo(s*0.12,0,s*0.07,-s*0.5,0,-s*0.82);c.fill();
+        // Dorsal fin
+        c.fillStyle=c2+'90';
+        c.beginPath();c.moveTo(0,-s*0.55);c.lineTo(-s*0.03,-s*0.15);c.lineTo(s*0.03,-s*0.15);c.fill();
+    }else if(sh.id==='titan'){
+        // TITAN: Heavy tank — wide, thick armor, big engines
+        _wing(s,[[0.12,0.12],[0.8,0.4],[0.85,0.2],[0.82,0.05],[0.55,-0.1],[0.15,-0.08]],c1);
+        // Armor plating on wings
+        _wing(s,[[0.4,0.0],[0.75,0.25],[0.78,0.12],[0.5,-0.05]],'#fff1');
+        // Heavy engines
+        for(const sx2 of[-1,1]){
+            c.fillStyle='#333';
+            c.beginPath();c.roundRect(sx2*s*0.55-s*0.06,s*0.0,s*0.12,s*0.2,3);c.fill();
+            c.fillStyle=`rgba(255,150,0,${0.5+0.3*fl})`;
+            c.beginPath();c.moveTo(sx2*s*0.55-s*0.04,s*0.2);c.lineTo(sx2*s*0.55,s*(0.35+0.1*fl));c.lineTo(sx2*s*0.55+s*0.04,s*0.2);c.fill();
+        }
+        // Fuselage — wide, armored
+        const bg=c.createLinearGradient(0,-s*0.75,0,s*0.25);
+        bg.addColorStop(0,c2);bg.addColorStop(0.3,c1);bg.addColorStop(0.7,'#3a2a00');bg.addColorStop(1,'#1a1000');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.78);c.bezierCurveTo(-s*0.12,-s*0.5,-s*0.2,0,-s*0.17,s*0.25);
+        c.lineTo(s*0.17,s*0.25);c.bezierCurveTo(s*0.2,0,s*0.12,-s*0.5,0,-s*0.78);c.fill();
+        // Armor bands
+        c.strokeStyle='#fff2';c.lineWidth=1.5;
+        c.beginPath();c.moveTo(-s*0.15,-s*0.2);c.lineTo(s*0.15,-s*0.2);c.stroke();
+        c.beginPath();c.moveTo(-s*0.16,0);c.lineTo(s*0.16,0);c.stroke();
+    }else if(sh.id==='pulse'){
+        // PULSE: Rapid fire — twin gun nacelles, sleek
+        _wing(s,[[0.1,0.05],[0.6,0.3],[0.65,0.15],[0.5,-0.05],[0.25,-0.15],[0.12,-0.1]],c1);
+        // Gun nacelles (prominent)
+        for(const sx2 of[-1,1]){
+            const nx=sx2*s*0.42;
+            // Nacelle body
+            c.fillStyle='#1a3040';
+            c.beginPath();c.roundRect(nx-s*0.05,-s*0.45,s*0.1,s*0.55,3);c.fill();
+            c.strokeStyle=c2+'60';c.lineWidth=0.8;c.strokeRect(nx-s*0.05,-s*0.45,s*0.1,s*0.55);
+            // Barrel
+            c.fillStyle='#556';c.fillRect(nx-s*0.015,-s*0.6,s*0.03,s*0.18);
+            // Muzzle flash
+            c.fillStyle=`rgba(0,255,255,${0.2+0.3*fl})`;
+            c.beginPath();c.arc(nx,-s*0.6,s*0.03,0,Math.PI*2);c.fill();
+        }
+        // Fuselage
+        const bg=c.createLinearGradient(0,-s*0.7,0,s*0.2);
+        bg.addColorStop(0,c2);bg.addColorStop(0.3,c1);bg.addColorStop(1,'#0a2020');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.75);c.bezierCurveTo(-s*0.08,-s*0.4,-s*0.12,0,-s*0.1,s*0.22);
+        c.lineTo(s*0.1,s*0.22);c.bezierCurveTo(s*0.12,0,s*0.08,-s*0.4,0,-s*0.75);c.fill();
+    }else if(sh.id==='nova'){
+        // NOVA: Ultimate — aggressive forward-swept wings, twin fins
+        _wing(s,[[0.1,-0.1],[0.75,0.15],[0.8,0.35],[0.7,0.25],[0.4,0.1],[0.12,0.05]],c1);
+        // Forward-swept wing tips (unique)
+        _wing(s,[[0.55,-0.15],[0.8,-0.05],[0.85,0.1],[0.7,0.12]],c2+'80');
+        // Twin vertical fins
+        for(const sx2 of[-1,1]){
+            c.fillStyle=c1;
+            c.beginPath();c.moveTo(sx2*s*0.2,-s*0.3);c.lineTo(sx2*s*0.28,-s*0.55);c.lineTo(sx2*s*0.22,-s*0.1);c.fill();
+        }
+        // Fuselage — aggressive
+        const bg=c.createLinearGradient(0,-s*0.9,0,s*0.2);
+        bg.addColorStop(0,c2);bg.addColorStop(0.15,'#fff3');bg.addColorStop(0.4,c1);bg.addColorStop(1,'#200a0a');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.92);c.bezierCurveTo(-s*0.06,-s*0.6,-s*0.14,0,-s*0.11,s*0.22);
+        c.lineTo(s*0.11,s*0.22);c.bezierCurveTo(s*0.14,0,s*0.06,-s*0.6,0,-s*0.92);c.fill();
+        // Danger stripes
+        c.strokeStyle='#ff02';c.lineWidth=1;
+        for(let i=0;i<3;i++){
+            const yy=-s*0.3+i*s*0.12;
+            c.beginPath();c.moveTo(-s*0.08,yy);c.lineTo(s*0.08,yy);c.stroke();
+        }
+    }
+
+    // === COCKPIT (all ships) ===
+    const cpY=-s*(sh.id==='titan'?0.3:0.38);
+    const cpW=s*(sh.id==='titan'?0.09:0.065);
+    const cpH=s*0.12;
+    const cg=c.createRadialGradient(0,cpY,0,0,cpY,cpH);
+    cg.addColorStop(0,'rgba(255,255,255,0.95)');
+    cg.addColorStop(0.35,cutting?'rgba(0,255,255,0.8)':'rgba(150,200,255,0.8)');
+    cg.addColorStop(0.7,cutting?'rgba(0,150,180,0.5)':'rgba(60,100,200,0.5)');
+    cg.addColorStop(1,'rgba(0,0,0,0.3)');
+    c.fillStyle=cg;c.beginPath();c.ellipse(0,cpY,cpW,cpH,0,0,Math.PI*2);c.fill();
+    // Cockpit frame
+    c.strokeStyle='rgba(255,255,255,0.3)';c.lineWidth=0.5;
+    c.beginPath();c.ellipse(0,cpY,cpW+1,cpH+1,0,0,Math.PI*2);c.stroke();
+
+    // === RUNNING LIGHTS ===
+    const rlA=0.3+0.7*((Math.sin(time*0.008)>0)?1:0); // blink
+    c.fillStyle=`rgba(255,50,50,${rlA})`;c.beginPath();c.arc(-s*0.15,s*0.1,s*0.015,0,Math.PI*2);c.fill();
+    c.fillStyle=`rgba(50,255,50,${rlA})`;c.beginPath();c.arc(s*0.15,s*0.1,s*0.015,0,Math.PI*2);c.fill();
+
     c.restore();
 }
+
 function drawEnemy(ex,ey,rot,etype,time){
     c.save();c.translate(ex,ey);c.rotate(rot-Math.PI/2);
-    const s=Math.max(CELL*1.3,10);const fl=0.6+0.4*Math.sin(time*0.02);
+    const baseS=Math.max(CELL*1.3,10);
+    // Size varies by type
+    const sizeMap={bounce:1.0,chase:1.1,phase:1.0,tracer:1.2,shield:1.4,orbit:1.1,split:1.15,boss:2.5};
+    const s=baseS*(sizeMap[etype]||1);
+    const fl=0.5+0.5*Math.sin(time*0.02);
     const ep=0.4+0.6*Math.sin(time*0.008);
 
     if(etype==='bounce'){
-        // PATROL DRONE — hexagonal saucer shape, blue
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.1);
-        tg.addColorStop(0,'rgba(50,120,255,0.12)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.1,0,Math.PI*2);c.fill();
-        // Hex body
-        c.fillStyle='#1a3a6a';c.beginPath();
-        for(let i=0;i<6;i++){const a=Math.PI/3*i-Math.PI/6;c.lineTo(Math.cos(a)*s*0.5,Math.sin(a)*s*0.5);}
-        c.closePath();c.fill();
-        c.strokeStyle='#4af';c.lineWidth=1.5;c.stroke();
-        // Dome
-        const dg=c.createRadialGradient(0,-s*0.05,0,0,0,s*0.25);
-        dg.addColorStop(0,'rgba(100,200,255,0.8)');dg.addColorStop(1,'rgba(20,80,180,0.4)');
-        c.fillStyle=dg;c.beginPath();c.arc(0,0,s*0.25,0,Math.PI*2);c.fill();
-        // Rotating scanner light
+        // PATROL DRONE — disc-shaped surveillance craft with scanning beam
+        // Hull — layered disc
+        c.fillStyle='#0a2040';c.beginPath();c.ellipse(0,0,s*0.55,s*0.3,0,0,Math.PI*2);c.fill();
+        const hg=c.createLinearGradient(-s*0.5,-s*0.15,s*0.5,s*0.15);
+        hg.addColorStop(0,'#1a4a7a');hg.addColorStop(0.5,'#2a6aaa');hg.addColorStop(1,'#1a4a7a');
+        c.fillStyle=hg;c.beginPath();c.ellipse(0,-s*0.05,s*0.48,s*0.22,0,0,Math.PI*2);c.fill();
+        // Top dome
+        const dg=c.createRadialGradient(0,-s*0.1,0,0,-s*0.08,s*0.18);
+        dg.addColorStop(0,'rgba(150,220,255,0.9)');dg.addColorStop(0.6,'rgba(50,120,200,0.5)');dg.addColorStop(1,'rgba(20,60,120,0.2)');
+        c.fillStyle=dg;c.beginPath();c.ellipse(0,-s*0.1,s*0.2,s*0.15,0,0,Math.PI*2);c.fill();
+        // Sensor ring
+        c.strokeStyle=`rgba(100,200,255,${0.3+0.3*fl})`;c.lineWidth=1.5;
+        c.beginPath();c.ellipse(0,0,s*0.5,s*0.28,0,0,Math.PI*2);c.stroke();
+        // Scanning beam
         const sa=time*0.003;
-        c.fillStyle=`rgba(100,200,255,${0.3+0.3*fl})`;
-        c.beginPath();c.moveTo(0,0);c.arc(0,0,s*0.5,sa,sa+0.4);c.closePath();c.fill();
+        c.fillStyle=`rgba(80,180,255,${0.15+0.1*fl})`;
+        c.beginPath();c.moveTo(0,0);c.arc(0,0,s*0.55,sa,sa+0.5);c.closePath();c.fill();
+        // Navigation lights
+        for(let i=0;i<4;i++){
+            const la=Math.PI/2*i+time*0.002;
+            c.fillStyle=`rgba(100,200,255,${0.5+0.5*Math.sin(time*0.005+i)})`;
+            c.beginPath();c.arc(Math.cos(la)*s*0.42,Math.sin(la)*s*0.22,s*0.03,0,Math.PI*2);c.fill();
+        }
     }else if(etype==='chase'){
-        // HUNTER — aggressive angular fighter, red
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.2);
-        tg.addColorStop(0,'rgba(255,60,30,0.15)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.2,0,Math.PI*2);c.fill();
-        // Engine flame
-        c.fillStyle='rgba(255,100,30,0.8)';
-        c.beginPath();c.moveTo(-s*0.1,s*0.3);c.lineTo(0,s*(0.6+0.2*fl));c.lineTo(s*0.1,s*0.3);c.fill();
-        // Sharp wings
-        c.fillStyle='#800';
-        c.beginPath();c.moveTo(-s*0.1,s*0.1);c.lineTo(-s*0.75,s*0.35);c.lineTo(-s*0.8,-s*0.1);c.lineTo(-s*0.3,-s*0.15);c.closePath();c.fill();
-        c.beginPath();c.moveTo(s*0.1,s*0.1);c.lineTo(s*0.75,s*0.35);c.lineTo(s*0.8,-s*0.1);c.lineTo(s*0.3,-s*0.15);c.closePath();c.fill();
-        // Body
+        // HUNTER — aggressive interceptor, forward-swept wings, red
+        // Engine trail
+        c.fillStyle=`rgba(255,80,20,${0.6+0.3*fl})`;
+        c.beginPath();c.moveTo(-s*0.06,s*0.3);c.quadraticCurveTo(0,s*(0.55+0.2*fl),s*0.06,s*0.3);c.fill();
+        // Wings — forward-swept (aggressive)
+        c.fillStyle='#601010';
+        c.beginPath();c.moveTo(-s*0.1,0);c.lineTo(-s*0.7,-s*0.15);c.lineTo(-s*0.75,s*0.1);c.lineTo(-s*0.6,s*0.3);c.lineTo(-s*0.15,s*0.15);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.1,0);c.lineTo(s*0.7,-s*0.15);c.lineTo(s*0.75,s*0.1);c.lineTo(s*0.6,s*0.3);c.lineTo(s*0.15,s*0.15);c.closePath();c.fill();
+        // Wing blades (sharp edges)
+        c.strokeStyle='#f44';c.lineWidth=1;
+        c.beginPath();c.moveTo(-s*0.15,0);c.lineTo(-s*0.72,-s*0.12);c.stroke();
+        c.beginPath();c.moveTo(s*0.15,0);c.lineTo(s*0.72,-s*0.12);c.stroke();
+        // Fuselage
         const bg=c.createLinearGradient(0,-s*0.7,0,s*0.3);
-        bg.addColorStop(0,'#f84');bg.addColorStop(0.5,'#d22');bg.addColorStop(1,'#600');
-        c.fillStyle=bg;c.beginPath();c.moveTo(0,-s*0.7);c.lineTo(-s*0.18,s*0.25);c.lineTo(s*0.18,s*0.25);c.closePath();c.fill();
-        // Angry eye
-        const ecg=c.createRadialGradient(0,-s*0.15,0,0,-s*0.15,s*0.1);
-        ecg.addColorStop(0,`rgba(255,255,100,${ep})`);ecg.addColorStop(1,`rgba(255,60,20,${ep*0.5})`);
-        c.fillStyle=ecg;c.beginPath();c.arc(0,-s*0.15,s*0.1,0,Math.PI*2);c.fill();
+        bg.addColorStop(0,'#f66');bg.addColorStop(0.3,'#c22');bg.addColorStop(0.7,'#801010');bg.addColorStop(1,'#400808');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.75);c.bezierCurveTo(-s*0.1,-s*0.4,-s*0.15,s*0.05,-s*0.12,s*0.28);
+        c.lineTo(s*0.12,s*0.28);c.bezierCurveTo(s*0.15,s*0.05,s*0.1,-s*0.4,0,-s*0.75);c.fill();
+        // Cockpit — angry slit
+        c.fillStyle=`rgba(255,200,50,${0.6+0.3*ep})`;
+        c.beginPath();c.ellipse(0,-s*0.25,s*0.1,s*0.03,0,0,Math.PI*2);c.fill();
+        // Chin weapons
+        c.fillStyle='#444';c.fillRect(-s*0.04,-s*0.75,s*0.08,s*0.12);
+        c.fillStyle=`rgba(255,100,0,${0.3+0.4*fl})`;c.beginPath();c.arc(0,-s*0.76,s*0.02,0,Math.PI*2);c.fill();
     }else if(etype==='phase'){
-        // PHASE — ghostly, translucent diamond shape, purple
-        c.globalAlpha*=0.6+0.4*Math.sin(time*0.006);
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.3);
-        tg.addColorStop(0,'rgba(200,80,255,0.15)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.3,0,Math.PI*2);c.fill();
-        // Diamond body
-        c.fillStyle='rgba(120,40,180,0.6)';
-        c.beginPath();c.moveTo(0,-s*0.7);c.lineTo(-s*0.45,0);c.lineTo(0,s*0.5);c.lineTo(s*0.45,0);c.closePath();c.fill();
-        c.strokeStyle='rgba(200,120,255,0.7)';c.lineWidth=1.5;c.stroke();
-        // Inner glow
-        const ig=c.createRadialGradient(0,-s*0.1,0,0,-s*0.1,s*0.25);
-        ig.addColorStop(0,'rgba(255,200,255,0.8)');ig.addColorStop(1,'rgba(150,50,255,0.1)');
-        c.fillStyle=ig;c.beginPath();c.arc(0,-s*0.1,s*0.2,0,Math.PI*2);c.fill();
-        // Ghostly tendrils
-        for(let i=0;i<3;i++){
-            const ta=time*0.004+i*2.1;
-            c.strokeStyle=`rgba(180,100,255,${0.2+0.15*Math.sin(ta)})`;c.lineWidth=1;
-            c.beginPath();c.moveTo(0,s*0.3);
-            c.quadraticCurveTo(Math.sin(ta)*s*0.3,s*0.5,Math.sin(ta+1)*s*0.2,s*0.7+Math.sin(ta)*s*0.1);
-            c.stroke();
+        // PHASE — ethereal craft, translucent with energy field
+        c.globalAlpha*=0.5+0.5*Math.sin(time*0.005);
+        // Energy field
+        const ef=c.createRadialGradient(0,0,s*0.15,0,0,s*0.6);
+        ef.addColorStop(0,'rgba(200,100,255,0.3)');ef.addColorStop(0.6,'rgba(150,50,255,0.1)');ef.addColorStop(1,'transparent');
+        c.fillStyle=ef;c.beginPath();c.arc(0,0,s*0.6,0,Math.PI*2);c.fill();
+        // Crystal hull — diamond shape with facets
+        c.fillStyle='rgba(100,40,160,0.7)';
+        c.beginPath();c.moveTo(0,-s*0.65);c.lineTo(-s*0.35,-s*0.05);c.lineTo(-s*0.2,s*0.1);c.lineTo(0,s*0.45);
+        c.lineTo(s*0.2,s*0.1);c.lineTo(s*0.35,-s*0.05);c.closePath();c.fill();
+        // Facet highlights
+        c.fillStyle='rgba(180,120,255,0.3)';
+        c.beginPath();c.moveTo(0,-s*0.65);c.lineTo(-s*0.15,-s*0.15);c.lineTo(0,-s*0.05);c.lineTo(s*0.15,-s*0.15);c.closePath();c.fill();
+        c.strokeStyle='rgba(200,150,255,0.5)';c.lineWidth=0.8;
+        c.beginPath();c.moveTo(0,-s*0.65);c.lineTo(-s*0.35,-s*0.05);c.lineTo(0,s*0.45);c.lineTo(s*0.35,-s*0.05);c.closePath();c.stroke();
+        c.beginPath();c.moveTo(-s*0.35,-s*0.05);c.lineTo(s*0.35,-s*0.05);c.stroke();
+        // Core
+        const cg2=c.createRadialGradient(0,-s*0.1,0,0,-s*0.1,s*0.12);
+        cg2.addColorStop(0,`rgba(255,220,255,${ep})`);cg2.addColorStop(1,'rgba(150,50,255,0.1)');
+        c.fillStyle=cg2;c.beginPath();c.arc(0,-s*0.1,s*0.12,0,Math.PI*2);c.fill();
+        // Phase tendrils
+        c.strokeStyle=`rgba(180,100,255,${0.15+0.15*fl})`;c.lineWidth=1.2;
+        for(let i=0;i<4;i++){
+            const ta=time*0.003+i*1.6;
+            c.beginPath();c.moveTo(Math.cos(ta)*s*0.15,s*0.2);
+            c.quadraticCurveTo(Math.sin(ta)*s*0.35,s*0.45,Math.sin(ta+1)*s*0.25,s*0.65);c.stroke();
         }
     }else if(etype==='tracer'){
-        // TRACER — snake-like, green, follows trail
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.1);
-        tg.addColorStop(0,'rgba(0,255,80,0.12)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.1,0,Math.PI*2);c.fill();
-        // Segmented body
-        for(let i=3;i>=0;i--){
-            const sy2=-s*0.4+i*s*0.22;
-            const sw=s*(0.15+0.08*Math.sin(time*0.005+i*0.8));
-            c.fillStyle=i===0?'#0f4':'#0a3';
-            c.beginPath();c.ellipse(Math.sin(time*0.006+i)*s*0.05,sy2,sw,s*0.1,0,0,Math.PI*2);c.fill();
+        // TRACER — segmented serpent drone, follows trails
+        // Segments (body)
+        for(let i=5;i>=0;i--){
+            const seg=s*0.13;const sy2=-s*0.35+i*seg;
+            const wobble=Math.sin(time*0.006+i*0.9)*s*0.04;
+            const segW=s*(0.08+0.04*Math.sin(i*0.5));
+            const gc=i===0?'#0e4':'#0a3';
+            c.fillStyle=gc;
+            c.beginPath();c.roundRect(wobble-segW,sy2-seg*0.4,segW*2,seg*0.8,segW*0.5);c.fill();
+            // Segment joint lights
+            if(i>0){c.fillStyle=`rgba(0,255,100,${0.2+0.2*fl})`;c.beginPath();c.arc(wobble,sy2-seg*0.45,s*0.015,0,Math.PI*2);c.fill();}
         }
-        // Head
-        c.fillStyle='#0f4';c.beginPath();c.arc(0,-s*0.45,s*0.18,0,Math.PI*2);c.fill();
-        // Eyes
+        // Head — wider, distinct
+        const hg=c.createRadialGradient(0,-s*0.45,0,0,-s*0.45,s*0.14);
+        hg.addColorStop(0,'#0f4');hg.addColorStop(0.6,'#0a3');hg.addColorStop(1,'#052');
+        c.fillStyle=hg;c.beginPath();c.ellipse(0,-s*0.45,s*0.14,s*0.11,0,0,Math.PI*2);c.fill();
+        // Mandibles
+        c.strokeStyle='#0f4';c.lineWidth=1.5;
+        c.beginPath();c.moveTo(-s*0.1,-s*0.52);c.quadraticCurveTo(-s*0.18,-s*0.65,-s*0.12,-s*0.7);c.stroke();
+        c.beginPath();c.moveTo(s*0.1,-s*0.52);c.quadraticCurveTo(s*0.18,-s*0.65,s*0.12,-s*0.7);c.stroke();
+        // Eyes — bright targeting sensors
         c.fillStyle=`rgba(255,255,0,${ep})`;
-        c.beginPath();c.arc(-s*0.06,-s*0.48,s*0.04,0,Math.PI*2);c.fill();
-        c.beginPath();c.arc(s*0.06,-s*0.48,s*0.04,0,Math.PI*2);c.fill();
-        // Antennae
-        c.strokeStyle='#0f4';c.lineWidth=1;
-        c.beginPath();c.moveTo(-s*0.08,-s*0.6);c.lineTo(-s*0.2,-s*0.75);c.stroke();
-        c.beginPath();c.moveTo(s*0.08,-s*0.6);c.lineTo(s*0.2,-s*0.75);c.stroke();
+        c.beginPath();c.arc(-s*0.06,-s*0.48,s*0.03,0,Math.PI*2);c.fill();
+        c.beginPath();c.arc(s*0.06,-s*0.48,s*0.03,0,Math.PI*2);c.fill();
+        // Tail stinger
+        c.fillStyle='#0f4';
+        c.beginPath();c.moveTo(-s*0.03,s*0.45);c.lineTo(0,s*0.6);c.lineTo(s*0.03,s*0.45);c.fill();
     }else if(etype==='shield'){
-        // ARMOR TANK — bulky hexagonal with shield plates, yellow
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.2);
-        tg.addColorStop(0,'rgba(255,200,0,0.1)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.2,0,Math.PI*2);c.fill();
-        // Armored body — wide rectangle
-        c.fillStyle='#664400';
-        c.fillRect(-s*0.4,-s*0.45,s*0.8,s*0.7);
-        // Armor plates
-        c.fillStyle='#aa7700';
-        c.fillRect(-s*0.45,-s*0.35,s*0.15,s*0.5);c.fillRect(s*0.3,-s*0.35,s*0.15,s*0.5);
-        // Top plate
-        c.fillStyle='#cc9900';
-        c.beginPath();c.moveTo(-s*0.3,-s*0.45);c.lineTo(0,-s*0.6);c.lineTo(s*0.3,-s*0.45);c.closePath();c.fill();
-        // Visor
-        c.fillStyle=`rgba(255,255,0,${0.5+0.3*ep})`;
-        c.fillRect(-s*0.2,-s*0.25,s*0.4,s*0.08);
+        // ARMOR TANK — heavy armored gunship, slow but tough
+        // Heavy armor plating
+        c.fillStyle='#3a2a00';
+        c.beginPath();c.moveTo(-s*0.5,-s*0.3);c.lineTo(-s*0.55,s*0.2);c.lineTo(-s*0.35,s*0.35);
+        c.lineTo(s*0.35,s*0.35);c.lineTo(s*0.55,s*0.2);c.lineTo(s*0.5,-s*0.3);c.closePath();c.fill();
+        // Main hull
+        const hg=c.createLinearGradient(0,-s*0.5,0,s*0.3);
+        hg.addColorStop(0,'#cc9900');hg.addColorStop(0.3,'#aa7700');hg.addColorStop(0.7,'#664400');hg.addColorStop(1,'#332200');
+        c.fillStyle=hg;
+        c.beginPath();c.moveTo(0,-s*0.55);c.bezierCurveTo(-s*0.15,-s*0.45,-s*0.4,-s*0.2,-s*0.4,s*0.15);
+        c.lineTo(-s*0.2,s*0.3);c.lineTo(s*0.2,s*0.3);c.lineTo(s*0.4,s*0.15);
+        c.bezierCurveTo(s*0.4,-s*0.2,s*0.15,-s*0.45,0,-s*0.55);c.fill();
+        // Armor rivets
+        c.fillStyle='#fff2';
+        for(let i=0;i<6;i++){
+            const ra=Math.PI*2/6*i;
+            c.beginPath();c.arc(Math.cos(ra)*s*0.25,Math.sin(ra)*s*0.08-s*0.1,s*0.02,0,Math.PI*2);c.fill();
+        }
+        // Visor — horizontal slit
+        c.fillStyle=`rgba(255,255,0,${0.4+0.4*ep})`;
+        c.beginPath();c.ellipse(0,-s*0.2,s*0.2,s*0.04,0,0,Math.PI*2);c.fill();
+        // Shield energy field hint
+        c.strokeStyle=`rgba(255,255,0,${0.15+0.1*fl})`;c.lineWidth=2;
+        c.beginPath();c.arc(0,0,s*0.55,0,Math.PI*2);c.stroke();
         // Exhaust
         c.fillStyle=`rgba(255,180,0,${0.4+0.3*fl})`;
-        c.beginPath();c.moveTo(-s*0.15,s*0.25);c.lineTo(0,s*(0.4+0.15*fl));c.lineTo(s*0.15,s*0.25);c.fill();
+        c.beginPath();c.moveTo(-s*0.12,s*0.3);c.lineTo(0,s*(0.45+0.12*fl));c.lineTo(s*0.12,s*0.3);c.fill();
     }else if(etype==='orbit'){
-        // ORBIT RING — circular spinning enemy, orange
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.2);
-        tg.addColorStop(0,'rgba(255,150,0,0.1)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.2,0,Math.PI*2);c.fill();
-        // Spinning ring
-        const ra=time*0.004;
+        // ORBIT — ring-shaped drone with spinning energy arcs
+        // Outer ring structure
         c.strokeStyle='#fa0';c.lineWidth=3;
-        c.beginPath();c.arc(0,0,s*0.4,ra,ra+Math.PI*1.5);c.stroke();
+        c.beginPath();c.arc(0,0,s*0.45,0,Math.PI*2);c.stroke();
+        // Inner ring
         c.strokeStyle='#f80';c.lineWidth=2;
-        c.beginPath();c.arc(0,0,s*0.3,ra+Math.PI,ra+Math.PI*2.3);c.stroke();
-        // Core
-        const cg=c.createRadialGradient(0,0,0,0,0,s*0.2);
-        cg.addColorStop(0,'rgba(255,220,100,0.9)');cg.addColorStop(1,'rgba(255,150,0,0.3)');
-        c.fillStyle=cg;c.beginPath();c.arc(0,0,s*0.2,0,Math.PI*2);c.fill();
-        // Orbiting sparks
+        c.beginPath();c.arc(0,0,s*0.32,0,Math.PI*2);c.stroke();
+        // Ring surface detail
+        for(let i=0;i<8;i++){
+            const a=Math.PI/4*i;
+            c.fillStyle='#aa6600';
+            c.beginPath();c.arc(Math.cos(a)*s*0.39,Math.sin(a)*s*0.39,s*0.04,0,Math.PI*2);c.fill();
+        }
+        // Spinning energy arcs
+        const ra=time*0.005;
+        c.strokeStyle=`rgba(255,200,50,${0.4+0.3*fl})`;c.lineWidth=2.5;
+        c.beginPath();c.arc(0,0,s*0.45,ra,ra+Math.PI*0.8);c.stroke();
+        c.beginPath();c.arc(0,0,s*0.45,ra+Math.PI,ra+Math.PI*1.8);c.stroke();
+        // Central core — pulsing energy
+        const cg2=c.createRadialGradient(0,0,0,0,0,s*0.2);
+        cg2.addColorStop(0,`rgba(255,240,150,${0.8+0.2*ep})`);cg2.addColorStop(0.5,'rgba(255,180,50,0.5)');cg2.addColorStop(1,'rgba(200,100,0,0.1)');
+        c.fillStyle=cg2;c.beginPath();c.arc(0,0,s*0.2,0,Math.PI*2);c.fill();
+        // Orbiting energy nodes
         for(let i=0;i<3;i++){
-            const oa=ra*1.5+i*Math.PI*2/3;
-            c.fillStyle=`rgba(255,255,200,${0.5+0.3*fl})`;
-            c.beginPath();c.arc(Math.cos(oa)*s*0.45,Math.sin(oa)*s*0.45,s*0.05,0,Math.PI*2);c.fill();
+            const oa=ra*1.8+i*Math.PI*2/3;
+            const ox=Math.cos(oa)*s*0.39,oy=Math.sin(oa)*s*0.39;
+            c.fillStyle=`rgba(255,255,200,${0.6+0.3*fl})`;
+            c.beginPath();c.arc(ox,oy,s*0.04,0,Math.PI*2);c.fill();
+            // Energy trail
+            c.strokeStyle=`rgba(255,200,50,${0.2})`;c.lineWidth=1;
+            c.beginPath();c.arc(0,0,s*0.39,oa-0.5,oa);c.stroke();
         }
     }else if(etype==='split'){
-        // SPLIT BLOB — organic, pink, divides
-        const tg=c.createRadialGradient(0,0,0,0,0,s*1.1);
-        tg.addColorStop(0,'rgba(255,80,180,0.12)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,s*1.1,0,Math.PI*2);c.fill();
-        // Blobby body with wobble
-        c.fillStyle='#a03060';c.beginPath();
-        for(let i=0;i<12;i++){
-            const a=Math.PI*2/12*i;
-            const r=s*0.4+s*0.08*Math.sin(time*0.005+i*1.5);
+        // SPLIT — biomechanical entity, clearly shows two halves
+        // Outer membrane
+        c.fillStyle='#601030';c.beginPath();
+        for(let i=0;i<16;i++){
+            const a=Math.PI*2/16*i;
+            const r=s*0.42+s*0.06*Math.sin(time*0.004+i*1.2);
             if(i===0)c.moveTo(Math.cos(a)*r,Math.sin(a)*r);
             else c.lineTo(Math.cos(a)*r,Math.sin(a)*r);
         }
         c.closePath();c.fill();
         c.strokeStyle='#f4a';c.lineWidth=1.5;c.stroke();
-        // Inner blobs (showing it can split)
-        c.fillStyle='#c05080';
-        c.beginPath();c.arc(-s*0.12,-s*0.05,s*0.12,0,Math.PI*2);c.fill();
-        c.beginPath();c.arc(s*0.12,s*0.05,s*0.12,0,Math.PI*2);c.fill();
-        // Nucleus eyes
+        // Division line (shows it splits)
+        c.strokeStyle='#f8c8';c.lineWidth=1;c.setLineDash([3,3]);
+        c.beginPath();c.moveTo(0,-s*0.4);c.lineTo(0,s*0.4);c.stroke();
+        c.setLineDash([]);
+        // Left nucleus
+        const lg=c.createRadialGradient(-s*0.14,-s*0.05,0,-s*0.14,-s*0.05,s*0.14);
+        lg.addColorStop(0,'#f080b0');lg.addColorStop(1,'#802050');
+        c.fillStyle=lg;c.beginPath();c.arc(-s*0.14,-s*0.05,s*0.13,0,Math.PI*2);c.fill();
+        // Right nucleus
+        const rg=c.createRadialGradient(s*0.14,s*0.05,0,s*0.14,s*0.05,s*0.14);
+        rg.addColorStop(0,'#f080b0');rg.addColorStop(1,'#802050');
+        c.fillStyle=rg;c.beginPath();c.arc(s*0.14,s*0.05,s*0.13,0,Math.PI*2);c.fill();
+        // Eyes on each nucleus
         c.fillStyle=`rgba(255,255,200,${ep})`;
-        c.beginPath();c.arc(-s*0.12,-s*0.08,s*0.04,0,Math.PI*2);c.fill();
-        c.beginPath();c.arc(s*0.12,s*0.02,s*0.04,0,Math.PI*2);c.fill();
+        c.beginPath();c.arc(-s*0.14,-s*0.08,s*0.035,0,Math.PI*2);c.fill();
+        c.beginPath();c.arc(s*0.14,s*0.02,s*0.035,0,Math.PI*2);c.fill();
+        // Energy tendrils between nuclei
+        c.strokeStyle=`rgba(255,150,200,${0.3+0.2*fl})`;c.lineWidth=1;
+        c.beginPath();c.moveTo(-s*0.05,-s*0.05);c.quadraticCurveTo(0,Math.sin(time*0.005)*s*0.1,s*0.05,s*0.05);c.stroke();
     }else if(etype==='boss'){
-        // BOSS — large menacing, red/black
-        const sz=s*1.8;
-        const tg=c.createRadialGradient(0,0,0,0,0,sz*1.3);
-        tg.addColorStop(0,'rgba(255,0,0,0.15)');tg.addColorStop(1,'transparent');
-        c.fillStyle=tg;c.beginPath();c.arc(0,0,sz*1.3,0,Math.PI*2);c.fill();
+        // BOSS — massive capital ship, 2.5x size
+        // Shield aura
+        c.fillStyle=`rgba(255,0,0,${0.05+0.03*fl})`;c.beginPath();c.arc(0,0,s*0.7,0,Math.PI*2);c.fill();
         // Massive wings
-        c.fillStyle='#400';
-        c.beginPath();c.moveTo(-sz*0.15,sz*0.1);c.lineTo(-sz*0.85,sz*0.5);c.lineTo(-sz*0.9,0);
-        c.lineTo(-sz*0.7,-sz*0.3);c.lineTo(-sz*0.3,-sz*0.2);c.closePath();c.fill();
-        c.beginPath();c.moveTo(sz*0.15,sz*0.1);c.lineTo(sz*0.85,sz*0.5);c.lineTo(sz*0.9,0);
-        c.lineTo(sz*0.7,-sz*0.3);c.lineTo(sz*0.3,-sz*0.2);c.closePath();c.fill();
-        // Body
-        const bg=c.createLinearGradient(0,-sz*0.8,0,sz*0.3);
-        bg.addColorStop(0,'#f44');bg.addColorStop(0.4,'#a00');bg.addColorStop(1,'#300');
-        c.fillStyle=bg;
-        c.beginPath();c.moveTo(0,-sz*0.8);c.bezierCurveTo(-sz*0.25,-sz*0.5,-sz*0.2,sz*0.2,-sz*0.15,sz*0.3);
-        c.lineTo(sz*0.15,sz*0.3);c.bezierCurveTo(sz*0.2,sz*0.2,sz*0.25,-sz*0.5,0,-sz*0.8);c.fill();
-        // Multiple engines
-        for(let i=-1;i<=1;i++){
-            c.fillStyle=`rgba(255,50,0,${0.6+0.3*fl})`;
-            c.beginPath();c.moveTo(i*sz*0.08-sz*0.04,sz*0.3);c.lineTo(i*sz*0.08,sz*(0.5+0.2*fl));c.lineTo(i*sz*0.08+sz*0.04,sz*0.3);c.fill();
+        c.fillStyle='#300808';
+        c.beginPath();c.moveTo(-s*0.12,s*0.05);c.lineTo(-s*0.8,s*0.3);c.lineTo(-s*0.85,s*0.15);
+        c.lineTo(-s*0.8,-s*0.1);c.lineTo(-s*0.6,-s*0.2);c.lineTo(-s*0.15,-s*0.1);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.12,s*0.05);c.lineTo(s*0.8,s*0.3);c.lineTo(s*0.85,s*0.15);
+        c.lineTo(s*0.8,-s*0.1);c.lineTo(s*0.6,-s*0.2);c.lineTo(s*0.15,-s*0.1);c.closePath();c.fill();
+        // Wing weapons
+        for(const sx2 of[-1,1]){
+            c.fillStyle='#555';c.fillRect(sx2*s*0.6-s*0.03,-s*0.25,s*0.06,s*0.15);
+            c.fillStyle=`rgba(255,50,0,${0.3+0.4*fl})`;c.beginPath();c.arc(sx2*s*0.6,-s*0.26,s*0.025,0,Math.PI*2);c.fill();
         }
-        // Central eye
-        const ecg=c.createRadialGradient(0,-sz*0.15,0,0,-sz*0.15,sz*0.15);
-        ecg.addColorStop(0,`rgba(255,255,0,${ep})`);ecg.addColorStop(0.5,`rgba(255,0,0,${ep*0.6})`);
+        // Fuselage — heavy battleship
+        const bg=c.createLinearGradient(0,-s*0.6,0,s*0.25);
+        bg.addColorStop(0,'#f44');bg.addColorStop(0.2,'#a00');bg.addColorStop(0.5,'#600');bg.addColorStop(1,'#200');
+        c.fillStyle=bg;
+        c.beginPath();c.moveTo(0,-s*0.65);c.bezierCurveTo(-s*0.15,-s*0.4,-s*0.2,0,-s*0.18,s*0.22);
+        c.lineTo(s*0.18,s*0.22);c.bezierCurveTo(s*0.2,0,s*0.15,-s*0.4,0,-s*0.65);c.fill();
+        // Armor plates
+        c.strokeStyle='#fff1';c.lineWidth=1;
+        for(let i=0;i<4;i++){c.beginPath();c.moveTo(-s*0.14,-s*0.35+i*s*0.15);c.lineTo(s*0.14,-s*0.35+i*s*0.15);c.stroke();}
+        // Triple engines
+        for(let i=-1;i<=1;i++){
+            c.fillStyle=`rgba(255,50,0,${0.5+0.3*fl})`;
+            c.beginPath();c.moveTo(i*s*0.08-s*0.035,s*0.22);c.quadraticCurveTo(i*s*0.08,s*(0.4+0.15*fl),i*s*0.08+s*0.035,s*0.22);c.fill();
+        }
+        // Bridge/eye
+        const ecg=c.createRadialGradient(0,-s*0.2,0,0,-s*0.2,s*0.1);
+        ecg.addColorStop(0,`rgba(255,255,0,${ep})`);ecg.addColorStop(0.5,`rgba(255,50,0,${ep*0.5})`);
         ecg.addColorStop(1,'transparent');
-        c.fillStyle=ecg;c.beginPath();c.arc(0,-sz*0.15,sz*0.15,0,Math.PI*2);c.fill();
+        c.fillStyle=ecg;c.beginPath();c.arc(0,-s*0.2,s*0.1,0,Math.PI*2);c.fill();
+        // Threat pulsing ring
+        c.strokeStyle=`rgba(255,0,0,${0.1+0.1*Math.sin(time*0.003)})`;c.lineWidth=2;
+        c.beginPath();c.arc(0,0,s*0.65,0,Math.PI*2);c.stroke();
     }else{
-        // Fallback generic
         c.fillStyle='#a4f';c.beginPath();c.moveTo(0,-s*0.6);c.lineTo(-s*0.3,s*0.3);c.lineTo(s*0.3,s*0.3);c.closePath();c.fill();
     }
     c.restore();
@@ -2365,6 +2552,7 @@ document.getElementById('b-retry').onclick=()=>{sfxSel();hideScr();startLv(curLv
 document.getElementById('b-next').onclick=()=>{sfxSel();startLv(curLv+1);};
 document.getElementById('b-again').onclick=()=>{sfxSel();hideScr();showMap();};
 document.getElementById('b-map1').onclick=document.getElementById('b-map2').onclick=()=>{sfxSel();hideScr();showMap();};
+document.getElementById('b-win-hangar').onclick=()=>{sfxSel();hideScr();showHangar();};
 document.getElementById('hp').onclick=()=>pauseG();
 document.getElementById('p-res').onclick=()=>{sfxSel();resumeG();};
 document.getElementById('p-rty').onclick=()=>{sfxSel();resumeG();startLv(curLv);};
@@ -2393,42 +2581,13 @@ function showHangar(){
 }
 
 function drawShipDetailed(ctx,sh,cx,cy,size,time){
-    const ms=size;
-    ctx.save();ctx.translate(cx,cy);
-    // Engine glow
-    const glow=ctx.createRadialGradient(0,ms*0.4,0,0,ms*0.4,ms*0.8);
-    glow.addColorStop(0,sh.color2+'60');glow.addColorStop(1,'transparent');
-    ctx.fillStyle=glow;ctx.beginPath();ctx.arc(0,ms*0.4,ms*0.8,0,Math.PI*2);ctx.fill();
-    // Wings
-    ctx.fillStyle=sh.color1;
-    ctx.beginPath();ctx.moveTo(-ms*0.15,ms*0.05);ctx.lineTo(-ms*0.8,ms*0.55);ctx.lineTo(-ms*0.75,ms*0.3);ctx.lineTo(-ms*0.6,ms*0.15);ctx.lineTo(-ms*0.2,-ms*0.35);ctx.closePath();ctx.fill();
-    ctx.beginPath();ctx.moveTo(ms*0.15,ms*0.05);ctx.lineTo(ms*0.8,ms*0.55);ctx.lineTo(ms*0.75,ms*0.3);ctx.lineTo(ms*0.6,ms*0.15);ctx.lineTo(ms*0.2,-ms*0.35);ctx.closePath();ctx.fill();
-    // Wing tips
-    ctx.fillStyle=sh.color2+'80';
-    ctx.beginPath();ctx.moveTo(-ms*0.75,ms*0.35);ctx.lineTo(-ms*0.85,ms*0.6);ctx.lineTo(-ms*0.65,ms*0.4);ctx.closePath();ctx.fill();
-    ctx.beginPath();ctx.moveTo(ms*0.75,ms*0.35);ctx.lineTo(ms*0.85,ms*0.6);ctx.lineTo(ms*0.65,ms*0.4);ctx.closePath();ctx.fill();
-    // Body
-    const bg=ctx.createLinearGradient(0,-ms,0,ms*0.4);
-    bg.addColorStop(0,sh.color2);bg.addColorStop(0.35,sh.color1);bg.addColorStop(1,'#135');
-    ctx.fillStyle=bg;
-    ctx.beginPath();ctx.moveTo(0,-ms*0.95);ctx.bezierCurveTo(-ms*0.15,-ms*0.7,-ms*0.25,ms*0.1,-ms*0.2,ms*0.35);ctx.lineTo(ms*0.2,ms*0.35);ctx.bezierCurveTo(ms*0.25,ms*0.1,ms*0.15,-ms*0.7,0,-ms*0.95);ctx.fill();
-    // Cockpit
-    const cg=ctx.createRadialGradient(0,-ms*0.35,0,0,-ms*0.3,ms*0.15);
-    cg.addColorStop(0,'rgba(255,255,255,0.9)');cg.addColorStop(0.5,'rgba(150,200,255,0.6)');cg.addColorStop(1,'rgba(50,100,200,0.3)');
-    ctx.fillStyle=cg;ctx.beginPath();ctx.ellipse(0,-ms*0.3,ms*0.1,ms*0.15,0,0,Math.PI*2);ctx.fill();
-    // Engine exhaust
-    const ep=0.5+0.5*Math.sin((time||0)*0.01);
-    ctx.fillStyle=sh.color2;ctx.globalAlpha=0.6+ep*0.4;
-    ctx.beginPath();ctx.moveTo(-ms*0.1,ms*0.35);ctx.lineTo(0,ms*0.35+ms*0.3*(0.6+ep*0.4));ctx.lineTo(ms*0.1,ms*0.35);ctx.fill();
-    ctx.globalAlpha=1;
-    // Weapon hardpoints
-    if(sh.canShoot){
-        ctx.fillStyle='#ff0';ctx.globalAlpha=0.7+0.3*ep;
-        ctx.beginPath();ctx.arc(-ms*0.35,ms*0.05,ms*0.04,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(ms*0.35,ms*0.05,ms*0.04,0,Math.PI*2);ctx.fill();
-        ctx.globalAlpha=1;
-    }
-    ctx.restore();
+    // Use the main drawShip renderer for consistency
+    const oldC=c;c=ctx;
+    const idx=SHIPS.indexOf(sh);
+    // Scale: drawShip uses CELL*1.8 base, we want 'size' pixels
+    const oldCELL=CELL;CELL=size/1.8;
+    drawShip(cx,cy,Math.PI/2,false,time||0,idx>=0?idx:0);
+    CELL=oldCELL;c=oldC;
 }
 
 function renderHangar(time){
