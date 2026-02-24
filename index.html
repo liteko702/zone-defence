@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Zone Defence</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,7 +26,7 @@
         .b:active{transform:translateY(2px);box-shadow:0 1px 0 #006}
         .bg{border-color:#0a0;color:#0f0;background:#020;box-shadow:0 3px 0 #040}
         .br{border-color:#a00;color:#f44;background:#200;box-shadow:0 3px 0 #400}
-        #hud{position:fixed;top:0;left:0;right:0;display:none;justify-content:space-between;align-items:center;color:#0ff;font-size:clamp(7px,1.8vw,10px);z-index:5;pointer-events:none;padding:4px 8px;background:rgba(0,0,40,0.9)}
+        #hud{position:fixed;top:0;left:0;right:0;display:none;justify-content:space-between;align-items:center;color:#0ff;font-size:clamp(7px,1.8vw,10px);z-index:5;pointer-events:none;padding:max(4px,env(safe-area-inset-top,4px)) 8px 4px 8px;background:rgba(0,0,40,0.9)}
         #hud .hg{display:flex;gap:8px;align-items:center}
         .hl{color:#68a}.hv{color:#0ff}.hs{color:#ff0}.hlv{color:#f44;letter-spacing:2px}
         #hp{pointer-events:auto;cursor:pointer;color:#0af;font-size:12px;background:none;border:1px solid #0af;padding:2px 8px;font-family:inherit;touch-action:manipulation}
@@ -80,14 +80,17 @@ var gameReady=false;
 const cv=document.getElementById('cv'),c=cv.getContext('2d');
 let W,H,CELL,COLS,ROWS,scale;
 
+var GRID_TOP=0; // pixel offset for grid below HUD
 function resize(){
     W=window.innerWidth;H=window.innerHeight;
     cv.width=W;cv.height=H;
+    // Reserve space for HUD at top
+    GRID_TOP=Math.max(28,H*0.04);
     // Cell size: aim for ~60 cols in landscape, ~40 in portrait
     const targetCols=W>H?60:40;
     CELL=Math.max(6,Math.floor(W/targetCols));
     COLS=Math.floor(W/CELL);
-    ROWS=Math.floor(H/CELL);
+    ROWS=Math.floor((H-GRID_TOP)/CELL);
     // Rebuild grid if playing
     if(gameReady&&(state==='playing'||state==='paused'))reinitLevel();
 }
@@ -482,6 +485,7 @@ function drawEnemy(ex,ey,rot,chase,time){
 function render(time){
     c.save();if(shakeD>0)c.translate((Math.random()-0.5)*shakeA*2,(Math.random()-0.5)*shakeA*2);
     drawBg(time);
+    c.save();c.translate(0,GRID_TOP); // offset grid below HUD
 
     // Grid — bright visible border
     for(let r=0;r<ROWS;r++)for(let cc=0;cc<COLS;cc++){
@@ -558,6 +562,7 @@ function render(time){
 
     drP();drFT();
     if(state==='dying'&&Math.sin(deathT*25)>0){c.fillStyle='rgba(255,30,0,0.12)';c.fillRect(0,0,W,H);}
+    c.restore(); // end grid offset
     // Vignette
     const vg=c.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.7);
     vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,0.35)');
