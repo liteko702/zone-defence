@@ -51,7 +51,7 @@
     <div class="scr v" id="s-title">
         <h1>ZONE DEFENCE</h1>
         <p>PILOT YOUR SHIP THROUGH SPACE<br><br>CLAIM TERRITORY BY CUTTING THROUGH THE VOID AND RETURNING TO BORDER<br><br>AVOID ENEMIES!<br>COLLECT POWER-UPS!</p>
-        <button class="b bg" id="b-play" style="padding:14px 36px">▶ PLAY</button>
+        <button class="b bg" id="b-play" style="padding:14px 36px" onclick="window._playClick&&window._playClick()">▶ PLAY</button>
         <button class="b" id="b-how">? HOW TO PLAY</button>
     </div>
     <div class="scr" id="s-how">
@@ -71,7 +71,6 @@
 <button id="fs">⛶</button>
 
 <script>
-(()=>{
 // ===== RESPONSIVE CANVAS =====
 var gameReady=false;
 const cv=document.getElementById('cv'),c=cv.getContext('2d');
@@ -456,7 +455,8 @@ function beginLv(){hideScr();document.getElementById('hud').style.display='flex'
 function respawn(){for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.mt=0;inputDir='none';playerSpeed=8;trailSpeed=6;shieldTimer=0;hideScr();state='playing';}
 
 // Buttons
-const bPlay=document.getElementById('b-play');bPlay.onclick=bPlay.ontouchend=e=>{e&&e.preventDefault();sfxSel();showMap();};
+window._playClick=()=>{sfxSel();showMap();};
+const bPlay=document.getElementById('b-play');bPlay.onclick=bPlay.ontouchend=e=>{e&&e.preventDefault();window._playClick();};
 document.getElementById('b-how').onclick=()=>{sfxSel();showScr('s-how');};
 document.getElementById('b-how-ok').onclick=()=>{sfxSel();showScr('s-title');};
 document.getElementById('b-go').onclick=()=>{sfxSel();beginLv();};
@@ -483,7 +483,7 @@ function loop(time){
     requestAnimationFrame(loop);
 }
 initG();requestAnimationFrame(loop);
-})();
+// end
 </script>
 </body>
 </html>
