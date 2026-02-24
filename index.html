@@ -65,6 +65,7 @@
         <h1>ZONE DEFENCE</h1>
         <p>PILOT YOUR SHIP ACROSS THE CONSTELLATIONS<br><br>CLAIM TERRITORY BY CUTTING THROUGH THE VOID<br><br>SHOOT ENEMIES · CAPTURE THEM IN ZONES<br>COLLECT POWER-UPS!</p>
         <button class="b bg" id="b-play" style="padding:14px 36px" onclick="window._playClick&&window._playClick()">▶ PLAY</button>
+        <button class="b" id="b-sandbox">🧪 SANDBOX</button>
         <button class="b" id="b-how">? HOW TO PLAY</button>
     </div>
     <div class="scr" id="s-how">
@@ -1008,13 +1009,21 @@ function lerpPlayer(dt){
 }
 function killP(){
     if(shieldTimer>0){shieldTimer=0;sp(player.x*CELL+CELL/2,player.y*CELL+CELL/2,'#ff0',20,50,0.3);return;}
-    for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;lives--;
+    for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;
+    if(sandboxInfinite&&lives>=99){
+        // Sandbox: just respawn, no life loss
+        sp(player.x*CELL+CELL/2,player.y*CELL+CELL/2,'#f42',15,50,0.3);
+        player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;player.mt=0;inputDir='none';
+        playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;return;
+    }
+    lives--;
     sfxDeath();shakeA=8;shakeD=0.3;sp(player.x*CELL+CELL/2,player.y*CELL+CELL/2,'#f42',30,80,0.5);
     if(lives<=0){state='dead';playOneShot('gameover');document.getElementById('o-sc').textContent='SCORE: '+score;document.getElementById('o-info').textContent=LEVELS[curLv].name+' — CUTS: '+cutsCt;showScr('s-over');}
     else{state='dying';deathT=0.5;}
 }
 function getPct(){return(claimedC/totalC*100)|0;}
 function checkWin(){
+    if(sandboxInfinite&&lives>=99)return; // no win in sandbox
     const pct=getPct();if(pct<LEVELS[curLv].target)return;
     let st=1;if(pct>=LEVELS[curLv].target+5)st=2;if(pct>=LEVELS[curLv].target+15)st=3;
     // Efficiency bonus — fewer cuts = bigger bonus
@@ -1721,6 +1730,8 @@ function render(time){
     vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,0.35)');
     c.fillStyle=vg;c.fillRect(0,0,W,H);
     // No scanlines during gameplay — keep it clean
+    // Sandbox overlay
+    if(sandboxOpen)renderSandboxPanel(time);
     c.restore();
 }
 
@@ -2639,6 +2650,188 @@ cv.addEventListener('click',e=>{
     const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
     handleHangarTap((e.clientX-rect.left)*sx,(e.clientY-rect.top)*sy);
 });
+
+// ===== SANDBOX MODE =====
+let sandboxOpen=false; // is the sandbox control panel showing
+let sandboxShip=0;
+let sandboxInfinite=true;
+let _sbBtns=[];
+const ETYPE_LIST=['bounce','chase','phase','tracer','shield','orbit','split'];
+
+function startSandbox(){
+    state='playing';hideScr();
+    sandboxShip=curShip;sandboxOpen=true;sandboxInfinite=true;
+    // Create a fake level
+    curLv=0;
+    const ship=SHIPS[sandboxShip];
+    lives=99;score=0;cutsCt=0;
+    initG();initP();enemies=[];bullets=[];powerups=[];inputDir='none';
+    P.length=0;FT.length=0;claimAC=[];enemyRespawnQueue=[];
+    playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;
+    document.getElementById('hud').style.display='flex';
+    document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';
+    cogBtn.style.display='none';hideSettings();
+    startMusic('gameplay');
+    updateHUD();
+}
+
+function sandboxSpawnEnemy(etype){
+    let ex,ey,tries=0;
+    do{ex=3+Math.floor(Math.random()*(COLS-6));ey=3+Math.floor(Math.random()*(ROWS-6));tries++;}while(grid[ey][ex]!==EMPTY&&tries<60);
+    if(tries>=60)return;
+    const spd=1.5+Math.random()*1.5;
+    const a=Math.random()*Math.PI*2;
+    enemies.push({x:ex,y:ey,fx:ex,fy:ey,dx:Math.cos(a),dy:Math.sin(a),speed:spd,origSpeed:spd,type:etype,chase:etype==='chase',hp:etype==='shield'?2:1,phaseTimer:3+Math.random()*4,orbitAngle:Math.random()*Math.PI*2,rot:0,stuckT:0});
+    sp(ex*CELL+CELL/2,ey*CELL+CELL/2,'#fff',12,40,0.3);
+    sfxSel();
+}
+
+function sandboxChangeShip(dir){
+    sandboxShip=(sandboxShip+dir+SHIPS.length)%SHIPS.length;
+    curShip=sandboxShip;
+    const ship=SHIPS[curShip];
+    playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;
+    sfxSel();
+}
+
+function renderSandboxPanel(time){
+    if(!sandboxOpen)return;
+    _sbBtns=[];
+    const pw=Math.min(W*0.92,360),ph=Math.min(H*0.7,400);
+    const px=W/2-pw/2,py=H/2-ph/2;
+    // Backdrop
+    c.fillStyle='rgba(0,0,20,0.92)';c.fillRect(px,py,pw,ph);
+    c.strokeStyle='#0af';c.lineWidth=2;c.strokeRect(px,py,pw,ph);
+
+    const fs=Math.max(8,Math.min(12,pw*0.035));
+    let yy=py+8;
+
+    // Title
+    c.fillStyle='#0ff';c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText('🧪 SANDBOX',px+pw/2,yy);yy+=fs+10;
+
+    // Ship selector
+    c.fillStyle='#889';c.font=(fs*0.6)+'px "Press Start 2P"';c.textAlign='left';
+    c.fillText('SHIP:',px+8,yy);
+    const sh=SHIPS[sandboxShip];
+    c.fillStyle=sh.color2;c.textAlign='center';
+    c.fillText(sh.name+(sh.canShoot?' 🔫':''),px+pw/2,yy);
+    // Arrow buttons
+    const abW=30,abH=18;
+    _sbBtn(px+pw/2-70,yy-2,abW,abH,'◄','shipL');
+    _sbBtn(px+pw/2+40,yy-2,abW,abH,'►','shipR');
+    yy+=22;
+
+    // Enemy spawn buttons
+    c.fillStyle='#889';c.font=(fs*0.6)+'px "Press Start 2P"';c.textAlign='left';
+    c.fillText('SPAWN ENEMY:',px+8,yy);yy+=fs*0.6+6;
+
+    const btnW=Math.max(55,(pw-24)/4-4),btnH=24;
+    for(let i=0;i<ETYPE_LIST.length;i++){
+        const col2=i%4,row=Math.floor(i/4);
+        const bx=px+8+col2*(btnW+4),by=yy+row*(btnH+4);
+        const et=ETYPE_LIST[i];
+        const ecol=ETYPE_COLORS[et];
+        c.fillStyle='rgba(0,0,40,0.8)';c.fillRect(bx,by,btnW,btnH);
+        c.strokeStyle=ecol;c.lineWidth=1;c.strokeRect(bx,by,btnW,btnH);
+        c.fillStyle=ecol;c.font=Math.max(5,btnH*0.3)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText(ETYPE_NAMES[et],bx+btnW/2,by+btnH/2);
+        _sbBtns.push({x:bx,y:by,w:btnW,h:btnH,action:'spawn',etype:et});
+    }
+    yy+=Math.ceil(ETYPE_LIST.length/4)*(btnH+4)+8;
+
+    // Spawn 5 random / Clear all
+    const hw=(pw-24)/2-4;
+    _sbBtn(px+8,yy,hw,btnH,'+ 5 RANDOM','spawn5');
+    _sbBtn(px+16+hw,yy,hw,btnH,'CLEAR ALL','clear');
+    yy+=btnH+8;
+
+    // Active count
+    c.fillStyle='#0fa';c.font=(fs*0.5)+'px "Press Start 2P"';c.textAlign='left';
+    c.fillText('ACTIVE: '+enemies.length+' enemies',px+8,yy);yy+=fs*0.5+8;
+
+    // Infinite lives toggle
+    _sbBtn(px+8,yy,hw,btnH,sandboxInfinite?'♥ INFINITE: ON':'♥ INFINITE: OFF','toggleInf');
+    // Spawn power-up
+    _sbBtn(px+16+hw,yy,hw,btnH,'+ POWER-UP','spawnPow');
+    yy+=btnH+8;
+
+    // Reset field
+    _sbBtn(px+8,yy,hw,btnH,'RESET FIELD','resetField');
+    yy+=btnH+12;
+
+    // Close / Back buttons
+    const cbW=(pw-24)/2-4;
+    _sbBtn(px+8,yy,cbW,28,'▶ PLAY','close');
+    _sbBtn(px+16+cbW,yy,cbW,28,'✕ EXIT','exit');
+
+    function _sbBtn(bx,by,bw,bh,text,action){
+        const isGreen=action==='close';const isRed=action==='exit'||action==='clear';
+        c.fillStyle=isGreen?'rgba(0,80,0,0.7)':isRed?'rgba(80,0,0,0.7)':'rgba(0,40,80,0.7)';
+        c.fillRect(bx,by,bw,bh);
+        c.strokeStyle=isGreen?'#0a0':isRed?'#f44':'#0af';c.lineWidth=1;c.strokeRect(bx,by,bw,bh);
+        c.fillStyle=isGreen?'#0f0':isRed?'#f44':'#0af';
+        c.font=Math.max(5,bh*0.3)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText(text,bx+bw/2,by+bh/2);
+        _sbBtns.push({x:bx,y:by,w:bw,h:bh,action});
+    }
+}
+
+function handleSandboxTap(mx,my){
+    if(!sandboxOpen)return false;
+    for(const b of _sbBtns){
+        if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){
+            if(b.action==='spawn')sandboxSpawnEnemy(b.etype);
+            else if(b.action==='spawn5'){for(let i=0;i<5;i++)sandboxSpawnEnemy(ETYPE_LIST[Math.floor(Math.random()*ETYPE_LIST.length)]);}
+            else if(b.action==='clear'){enemies=[];sfxSel();}
+            else if(b.action==='shipL')sandboxChangeShip(-1);
+            else if(b.action==='shipR')sandboxChangeShip(1);
+            else if(b.action==='toggleInf'){sandboxInfinite=!sandboxInfinite;lives=sandboxInfinite?99:3;sfxSel();}
+            else if(b.action==='spawnPow'){spawnPow();sfxSel();}
+            else if(b.action==='resetField'){initG();for(const t of trail)grid[t.y]&&(grid[t.y][t.x]=EMPTY);trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;claimedC=0;sfxSel();}
+            else if(b.action==='close'){sandboxOpen=false;sfxSel();}
+            else if(b.action==='exit'){sandboxOpen=false;state='title';showScr('s-title');document.getElementById('hud').style.display='none';document.getElementById('dp').style.display='none';cogBtn.style.display='block';startMusic('menu');sfxSel();}
+            return true;
+        }
+    }
+    return false;
+}
+
+// Override canShoot for sandbox: always allow
+const _origCanShoot=canShoot;
+canShoot=function(){if(sandboxOpen!==undefined&&state==='playing'&&sandboxInfinite&&SHIPS[curShip].canShoot)return true;return _origCanShoot();};
+
+// Hook sandbox panel tap into canvas
+let _sbTapHandled=false;
+cv.addEventListener('touchend',e=>{
+    if(state!=='playing'||!sandboxOpen)return;
+    _sbTapHandled=true;setTimeout(()=>_sbTapHandled=false,400);
+    const t=e.changedTouches[0];if(!t)return;
+    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+    if(handleSandboxTap((t.clientX-rect.left)*sx,(t.clientY-rect.top)*sy))e.stopPropagation();
+},{passive:false,capture:true});
+cv.addEventListener('click',e=>{
+    if(state!=='playing'||!sandboxOpen)return;
+    if(_sbTapHandled)return;
+    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+    handleSandboxTap((e.clientX-rect.left)*sx,(e.clientY-rect.top)*sy);
+},{capture:true});
+
+// Toggle sandbox panel with pause button when in sandbox
+const _origPause=document.getElementById('hp').onclick;
+document.getElementById('hp').onclick=function(e){
+    if(sandboxInfinite!==undefined&&sandboxOpen!==undefined){
+        // Check if we're in sandbox
+        if(lives>=99||sandboxOpen){sandboxOpen=!sandboxOpen;sfxSel();return;}
+    }
+    if(_origPause)_origPause.call(this,e);
+};
+
+// Hook: prevent death in sandbox infinite mode
+const _origLoseLife=typeof loseLife==='function'?loseLife:null;
+
+// Sandbox button on title
+document.getElementById('b-sandbox').onclick=()=>{sfxSel();startMusic('menu');startSandbox();};
 
 // ===== GAME LOOP =====
 let lt=0;
