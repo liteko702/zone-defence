@@ -163,7 +163,18 @@ const PTYPE=[
 
 // ===== INPUT =====
 const keys={};
-addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key==='Escape'||e.key==='p'){if(state==='playing')pauseG();else if(state==='paused')resumeG();}});
+addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
+if(e.key==='Escape'||e.key==='p'){if(state==='playing')pauseG();else if(state==='paused')resumeG();}
+// Enter/Space on popup screens
+if(e.key==='Enter'||e.key===' '){
+let handled=false;
+if(state==='title'){sfxSel();showMap();handled=true;}
+else if(state==='dead_pause'){sfxSel();respawn();handled=true;}
+else if(state==='dead'){sfxSel();startLv(curLv);handled=true;}
+else if(state==='won'){sfxSel();if(curLv<LEVELS.length-1)startLv(curLv+1);else showMap();handled=true;}
+else if(state==='levelIntro'){sfxSel();beginLv();handled=true;}
+if(handled){e.stopImmediatePropagation();return;}
+}});
 addEventListener('keyup',e=>keys[e.key]=false);
 function rI(){if(keys.ArrowUp||keys.w)return'up';if(keys.ArrowDown||keys.s)return'down';if(keys.ArrowLeft||keys.a)return'left';if(keys.ArrowRight||keys.d)return'right';return dD||'none';}
 let dD=null;
