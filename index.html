@@ -2568,7 +2568,7 @@ document.getElementById('b-how-ok').onclick=()=>{sfxSel();showScr('s-title');};
 document.getElementById('b-go').onclick=()=>{sfxSel();beginLv();};
 document.getElementById('b-cont').onclick=()=>{sfxSel();respawn();};
 document.getElementById('b-retry').onclick=()=>{sfxSel();hideScr();startLv(curLv);};
-document.getElementById('b-next').onclick=()=>{sfxSel();startLv(curLv+1);};
+document.getElementById('b-next').onclick=()=>{sfxSel();if(curLv<LEVELS.length-1)startLv(curLv+1);else showMap();};
 document.getElementById('b-again').onclick=()=>{sfxSel();hideScr();showMap();};
 document.getElementById('b-map1').onclick=document.getElementById('b-map2').onclick=()=>{sfxSel();hideScr();showMap();};
 document.getElementById('b-win-hangar').onclick=()=>{sfxSel();hideScr();showHangar();};
