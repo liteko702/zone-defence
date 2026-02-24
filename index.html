@@ -43,6 +43,12 @@
         #dpad-lock{position:fixed;z-index:25;background:rgba(0,0,30,0.8);border:1px solid #0af;color:#0af;font-size:14px;padding:4px 8px;cursor:pointer;touch-action:manipulation;border-radius:4px;line-height:1;display:none}
         #dpad-lock.unlocked{border-color:#f80;color:#f80}
         #dp.dragging{opacity:0.7;border:2px dashed #f80;border-radius:12px}
+        .ship-card{width:80px;height:80px;border:2px solid #335;background:rgba(0,0,30,0.9);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;touch-action:manipulation;position:relative}
+        .ship-card.unlocked{border-color:#0af}.ship-card.unlocked:hover{border-color:#0ff;background:rgba(0,30,60,0.9)}
+        .ship-card.selected{border-color:#0f0;box-shadow:0 0 12px rgba(0,255,0,0.3)}
+        .ship-card.locked{opacity:0.5}.ship-card .sname{color:#0af;font-size:6px;font-family:'Press Start 2P',monospace}
+        .ship-card .slock{color:#f80;font-size:6px;font-family:'Press Start 2P',monospace}
+        .ship-card canvas{image-rendering:auto}
         #pov{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:30;flex-direction:column;align-items:center;justify-content:center;gap:10px}
         #pov.v{display:flex}
         #pov h2{color:#ff0;font-size:clamp(14px,4vw,20px);text-shadow:2px 2px #840;margin-bottom:8px}
@@ -73,6 +79,21 @@
     <div class="scr" id="s-over"><h2 style="color:#f44">GAME OVER</h2><p class="st" id="o-sc"></p><p class="st" id="o-info"></p><button class="b br" id="b-retry">RETRY</button><button class="b" id="b-map1">MAP</button></div>
     <div class="scr" id="s-win"><h2 style="color:#0f0">★ SECTOR CLEAR ★</h2><p class="st" id="w-sc"></p><p class="st" id="w-info"></p><div id="w-st" style="font-size:clamp(16px,4vw,24px);color:#ff0"></div><button class="b bg" id="b-next">NEXT ▶</button><button class="b" id="b-map2">MAP</button></div>
     <div class="scr" id="s-done"><h1 style="color:#ff0">★ COMPLETE ★</h1><p class="st" id="c-sc"></p><button class="b bg" id="b-again">NEW GAME</button></div>
+    <div class="scr" id="s-hangar" style="max-width:95vw;max-height:90vh">
+        <h2>⚙ HANGAR</h2>
+        <p id="h-stars" style="color:#ff0"></p>
+        <div id="ship-list" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:420px"></div>
+        <div id="ship-detail" style="text-align:center;margin-top:4px">
+            <canvas id="ship-preview" width="120" height="120" style="image-rendering:auto"></canvas>
+            <p id="ship-name" style="color:#0ff;font-size:clamp(10px,3vw,14px)"></p>
+            <p id="ship-desc" style="color:#8af;font-size:clamp(7px,2vw,9px);line-height:1.6"></p>
+            <p id="ship-stats" style="color:#0fa;font-size:clamp(7px,2vw,9px);line-height:1.8"></p>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button class="b bg" id="b-select-ship">SELECT</button>
+            <button class="b" id="b-hangar-back">BACK</button>
+        </div>
+    </div>
 </div>
 <div id="pov"><h2>PAUSED</h2><button class="b bg" id="p-res">▶ CONTINUE</button><button class="b" id="p-rty">↺ RETRY</button><button class="b" id="p-map">MAP</button><button class="b br" id="p-quit">✕ QUIT</button></div>
 <div id="dp"><div class="db" id="du">▲</div><div class="db" id="dd">▼</div><div class="db" id="dl">◀</div><div class="db" id="dr">▶</div></div>
@@ -191,10 +212,41 @@ const LEVELS=[
  enemies:[{speed:5.5,type:'bounce'},{speed:5,type:'bounce'},{speed:4.5,type:'chase'},{speed:4,type:'chase'},{speed:3.5,type:'phase'},{speed:3,type:'shield'},{speed:3,type:'orbit'}],lives:5,target:85,color:'#ff0',boss:true},
 ];
 
+// ===== SHIPS =====
+const SHIPS=[
+{id:'viper',name:'VIPER',desc:'BALANCED FIGHTER.\nGOOD ALL-ROUNDER.',
+ starsNeeded:0,
+ speed:8,trailSpeed:6,fireRate:0.35,bulletDmg:1,lives:0,
+ color1:'#28a',color2:'#6cf',trailCol:'#0fa',bulletCol:'#ff0',
+ special:null,specialDesc:'NO SPECIAL ABILITY'},
+{id:'phantom',name:'PHANTOM',desc:'STEALTH CUTTER.\nFASTER TRAIL SPEED\nBUT SLOWER FIRE.',
+ starsNeeded:4,
+ speed:8,trailSpeed:9,fireRate:0.6,bulletDmg:1,lives:0,
+ color1:'#508',color2:'#c8f',trailCol:'#f0f',bulletCol:'#c8f',
+ special:'fastTrail',specialDesc:'FAST TRAIL CUTTING'},
+{id:'titan',name:'TITAN',desc:'HEAVY TANK.\nEXTRA LIFE & DAMAGE\nBUT SLOWER MOVEMENT.',
+ starsNeeded:10,
+ speed:6,trailSpeed:5,fireRate:0.35,bulletDmg:2,lives:1,
+ color1:'#a50',color2:'#fa0',trailCol:'#fa0',bulletCol:'#f80',
+ special:'heavyShot',specialDesc:'+1 LIFE · DOUBLE DAMAGE'},
+{id:'pulse',name:'PULSE',desc:'RAPID FIRE.\nFAST SHOOTING\nBUT WEAKER BULLETS.',
+ starsNeeded:18,
+ speed:8,trailSpeed:6,fireRate:0.15,bulletDmg:1,lives:0,
+ color1:'#0a5',color2:'#0ff',trailCol:'#0ff',bulletCol:'#0ff',
+ special:'rapidFire',specialDesc:'RAPID FIRE CANNON'},
+{id:'nova',name:'NOVA',desc:'THE ULTIMATE.\nFAST · STRONG · FRAGILE.\nONE LESS LIFE.',
+ starsNeeded:28,
+ speed:10,trailSpeed:8,fireRate:0.25,bulletDmg:2,lives:-1,
+ color1:'#a00',color2:'#f44',trailCol:'#f42',bulletCol:'#f44',
+ special:'nova',specialDesc:'FAST + STRONG · -1 LIFE'},
+];
+let curShip=0; // index into SHIPS
+
 // ===== SAVE =====
-let save={hi:0,unlocked:1,stars:[],scores:[]};
-try{const d=JSON.parse(localStorage.getItem('zd5'));if(d)save=d;}catch(e){}
-function writeS(){try{localStorage.setItem('zd5',JSON.stringify(save));}catch(e){}}
+let save={hi:0,unlocked:1,stars:[],scores:[],ship:0};
+try{const d=JSON.parse(localStorage.getItem('zd5'));if(d){save=d;curShip=save.ship||0;}}catch(e){}
+function writeS(){save.ship=curShip;try{localStorage.setItem('zd5',JSON.stringify(save));}catch(e){}}
+function totalStars(){return(save.stars||[]).reduce((a,b)=>a+(b||0),0);}
 
 // ===== STARFIELD =====
 const stars=[];for(let i=0;i<300;i++)stars.push({xp:Math.random(),yp:Math.random(),s:Math.random()*2+0.5,b:Math.random(),t:1+Math.random()*3});
@@ -471,7 +523,12 @@ function spawnPow(){let px,py,tries=0;do{px=2+Math.floor(Math.random()*(COLS-4))
 function checkPow(){for(let i=powerups.length-1;i>=0;i--){const p=powerups[i];const dx=player.x-p.x,dy=player.y-p.y;if(dx*dx+dy*dy<=PICKUP_RADIUS*PICKUP_RADIUS){sfxPow();addFT(p.x*CELL+CELL/2,p.y*CELL-8,p.type.name,'#ff0',10);sp(p.x*CELL+CELL/2,p.y*CELL+CELL/2,p.type.color,15,40,0.4);p.type.effect();powerups.splice(i,1);}}}
 
 // ===== PLAYER =====
-function initP(){player={x:Math.floor(COLS/2),y:0,vx:Math.floor(COLS/2),vy:0,mt:0,cutting:false,dir:'none'};trail=[];inputDir='none';playerSpeed=8;trailSpeed=6;shieldTimer=0;}
+function initP(){
+    const ship=SHIPS[curShip];
+    player={x:Math.floor(COLS/2),y:0,vx:Math.floor(COLS/2),vy:0,mt:0,cutting:false,dir:'none'};
+    trail=[];inputDir='none';
+    playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;shieldTimer=0;
+}
 function moveP(dt){
     const nd=rI();if(nd!=='none')inputDir=nd;
     const spd=player.cutting?trailSpeed:playerSpeed;player.mt+=dt*spd;if(player.mt<1)return;player.mt-=1;
@@ -660,10 +717,11 @@ function moveE(dt){
 function updateBullets(dt){
     // Auto-fire when moving
     shootTimer-=dt;
+    const ship=SHIPS[curShip];
     if(inputDir!=='none'&&shootTimer<=0&&state==='playing'){
         const[dx,dy]=DIR[inputDir];
-        bullets.push({x:player.vx*CELL+CELL/2,y:player.vy*CELL+CELL/2+GRID_TOP,dx,dy,life:1.5});
-        shootTimer=SHOOT_INTERVAL;sfxShoot();
+        bullets.push({x:player.vx*CELL+CELL/2,y:player.vy*CELL+CELL/2+GRID_TOP,dx,dy,life:1.5,dmg:ship.bulletDmg});
+        shootTimer=ship.fireRate;sfxShoot();
     }
     // Move bullets
     for(let i=bullets.length-1;i>=0;i--){
@@ -678,7 +736,7 @@ function updateBullets(dt){
             const ex=e.fx*CELL+CELL/2,ey=e.fy*CELL+CELL/2+GRID_TOP;
             const hdx=b.x-ex,hdy=b.y-ey;
             if(hdx*hdx+hdy*hdy<(CELL*1.5)**2){
-                e.hp--;
+                e.hp-=(b.dmg||1);
                 sp(ex,ey-GRID_TOP,'#fff',8,30,0.2);
                 sfxHit();
                 if(e.hp<=0){
@@ -723,10 +781,11 @@ function checkCaptureKills(){
 }
 
 // ===== SHIP DRAWING =====
-function drawShip(px,py,rot,cutting,time){
+function drawShip(px,py,rot,cutting,time,shipIdx){
+    const sh=SHIPS[shipIdx!==undefined?shipIdx:curShip];
     c.save();c.translate(px,py);c.rotate(rot-Math.PI/2);
     const s=Math.max(CELL*1.5,12);const fl=0.6+0.4*Math.sin(time*0.015);
-    // Engine exhaust glow (large soft)
+    // Engine exhaust glow
     const eg=c.createRadialGradient(0,s*0.6,0,0,s*0.6,s*0.9);
     eg.addColorStop(0,cutting?'rgba(0,255,180,0.6)':'rgba(50,150,255,0.6)');
     eg.addColorStop(0.5,cutting?'rgba(0,255,120,0.2)':'rgba(30,100,255,0.2)');
@@ -736,13 +795,37 @@ function drawShip(px,py,rot,cutting,time){
     c.fillStyle=cutting?'rgba(0,255,200,0.9)':'rgba(80,180,255,0.9)';
     c.beginPath();c.moveTo(-s*0.12,s*0.3);c.lineTo(-s*0.06,s*(0.6+0.2*fl));c.lineTo(0,s*0.3);c.fill();
     c.beginPath();c.moveTo(0,s*0.3);c.lineTo(s*0.06,s*(0.55+0.15*fl));c.lineTo(s*0.12,s*0.3);c.fill();
-    // Wings — swept back
-    const wc=cutting?'#0a8870':'#1a5088';const wh=cutting?'#0dc':'#2af';
+    // Wings — shaped differently per ship
+    const wc=cutting?sh.color1:sh.color1;const wh=cutting?sh.color2:sh.color2;
     c.fillStyle=wc;
-    c.beginPath();c.moveTo(-s*0.1,s*0.05);c.lineTo(-s*0.65,s*0.45);c.lineTo(-s*0.7,s*0.35);
-    c.lineTo(-s*0.35,s*0.05);c.lineTo(-s*0.15,-s*0.15);c.closePath();c.fill();
-    c.beginPath();c.moveTo(s*0.1,s*0.05);c.lineTo(s*0.65,s*0.45);c.lineTo(s*0.7,s*0.35);
-    c.lineTo(s*0.35,s*0.05);c.lineTo(s*0.15,-s*0.15);c.closePath();c.fill();
+    if(sh.id==='titan'){
+        // Wide heavy wings
+        c.beginPath();c.moveTo(-s*0.12,s*0.1);c.lineTo(-s*0.8,s*0.4);c.lineTo(-s*0.85,s*0.25);c.lineTo(-s*0.4,0);c.lineTo(-s*0.15,-s*0.1);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.12,s*0.1);c.lineTo(s*0.8,s*0.4);c.lineTo(s*0.85,s*0.25);c.lineTo(s*0.4,0);c.lineTo(s*0.15,-s*0.1);c.closePath();c.fill();
+    }else if(sh.id==='phantom'){
+        // Sleek swept wings
+        c.beginPath();c.moveTo(-s*0.08,s*0.05);c.lineTo(-s*0.55,s*0.5);c.lineTo(-s*0.5,s*0.3);c.lineTo(-s*0.2,-s*0.2);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.08,s*0.05);c.lineTo(s*0.55,s*0.5);c.lineTo(s*0.5,s*0.3);c.lineTo(s*0.2,-s*0.2);c.closePath();c.fill();
+    }else if(sh.id==='nova'){
+        // Sharp angular wings
+        c.beginPath();c.moveTo(-s*0.1,0);c.lineTo(-s*0.75,s*0.3);c.lineTo(-s*0.7,s*0.15);c.lineTo(-s*0.3,-s*0.15);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.1,0);c.lineTo(s*0.75,s*0.3);c.lineTo(s*0.7,s*0.15);c.lineTo(s*0.3,-s*0.15);c.closePath();c.fill();
+        // Extra fin
+        c.fillStyle=sh.color2;
+        c.beginPath();c.moveTo(0,-s*0.5);c.lineTo(-s*0.06,-s*0.15);c.lineTo(s*0.06,-s*0.15);c.closePath();c.fill();
+    }else if(sh.id==='pulse'){
+        // Rounded wings with gun pods
+        c.beginPath();c.moveTo(-s*0.1,s*0.05);c.lineTo(-s*0.6,s*0.35);c.lineTo(-s*0.65,s*0.2);c.lineTo(-s*0.3,-s*0.05);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.1,s*0.05);c.lineTo(s*0.6,s*0.35);c.lineTo(s*0.65,s*0.2);c.lineTo(s*0.3,-s*0.05);c.closePath();c.fill();
+        // Gun pods
+        c.fillStyle=sh.color2;
+        c.beginPath();c.arc(-s*0.55,s*0.25,s*0.08,0,Math.PI*2);c.fill();
+        c.beginPath();c.arc(s*0.55,s*0.25,s*0.08,0,Math.PI*2);c.fill();
+    }else{
+        // Default viper wings
+        c.beginPath();c.moveTo(-s*0.1,s*0.05);c.lineTo(-s*0.65,s*0.45);c.lineTo(-s*0.7,s*0.35);c.lineTo(-s*0.35,s*0.05);c.lineTo(-s*0.15,-s*0.15);c.closePath();c.fill();
+        c.beginPath();c.moveTo(s*0.1,s*0.05);c.lineTo(s*0.65,s*0.45);c.lineTo(s*0.7,s*0.35);c.lineTo(s*0.35,s*0.05);c.lineTo(s*0.15,-s*0.15);c.closePath();c.fill();
+    }
     // Wing tips
     c.fillStyle=wh;c.fillRect(-s*0.7,s*0.33,s*0.12,s*0.04);c.fillRect(s*0.58,s*0.33,s*0.12,s*0.04);
     // Wing engines
@@ -751,7 +834,7 @@ function drawShip(px,py,rot,cutting,time){
     c.beginPath();c.arc(s*0.55,s*0.42,s*0.06*fl,0,Math.PI*2);c.fill();
     // Body hull
     const bg=c.createLinearGradient(0,-s*0.9,0,s*0.3);
-    bg.addColorStop(0,cutting?'#0fe':'#6cf');bg.addColorStop(0.3,cutting?'#0b8':'#28a');bg.addColorStop(1,cutting?'#064':'#135');
+    bg.addColorStop(0,sh.color2);bg.addColorStop(0.3,sh.color1);bg.addColorStop(1,'#135');
     c.fillStyle=bg;
     c.beginPath();c.moveTo(0,-s*0.85);c.lineTo(-s*0.18,s*0.0);c.lineTo(-s*0.15,s*0.3);
     c.lineTo(s*0.15,s*0.3);c.lineTo(s*0.18,s*0.0);c.closePath();c.fill();
@@ -1002,7 +1085,16 @@ function renderMap(time){
         if(save.stars[i]){c.fillStyle='#ff0';c.font=Math.max(6,nodeR*0.3)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';c.fillText('*'.repeat(save.stars[i]),n.x,n.y+nodeR+4);}
     }
 
-    c.fillStyle='#68a';c.font=Math.max(6,Math.min(8,W*0.015))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';c.fillText('TAP A PLANET TO PLAY',W/2,H-8);
+    // Hangar button
+    const hbW=Math.max(60,W*0.12),hbH=Math.max(22,H*0.05),hbX=W-hbW-10,hbY=H-hbH-8;
+    c.fillStyle='rgba(0,0,30,0.8)';c.fillRect(hbX,hbY,hbW,hbH);
+    c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(hbX,hbY,hbW,hbH);
+    c.fillStyle='#0af';c.font=Math.max(7,hbH*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('⚙ HANGAR',hbX+hbW/2,hbY+hbH/2);
+    renderMap._hb={x:hbX,y:hbY,w:hbW,h:hbH};
+    // Active ship indicator
+    c.fillStyle='#0fa';c.font=Math.max(6,Math.min(8,W*0.015))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+    c.fillText('SHIP: '+SHIPS[curShip].name+'  ·  TAP A PLANET TO PLAY',W/2,H-8);
     drP();drawScanlines();
 
     // Store nodes for click detection
@@ -1015,6 +1107,8 @@ cv.addEventListener('click',e=>{
     const nodes=renderMap._nodes,nodeR=renderMap._nodeR;if(!nodes)return;
     const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
     const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
+    // Check hangar button
+    const hb=renderMap._hb;if(hb&&mx>=hb.x&&mx<=hb.x+hb.w&&my>=hb.y&&my<=hb.y+hb.h){sfxSel();showHangar();return;}
     for(const n of nodes){if((mx-n.x)**2+(my-n.y)**2<(nodeR+12)**2){if(n.i<save.unlocked){sfxSel();startLv(n.i);}else beep(150,0.15,'sawtooth',0.06);return;}}
 });
 addEventListener('keydown',e=>{if(state!=='map')return;if(e.key==='ArrowUp'||e.key==='w'){mSel=Math.min(mSel+1,save.unlocked-1);sfxSel();}if(e.key==='ArrowDown'||e.key==='s'){mSel=Math.max(mSel-1,0);sfxSel();}if(e.key==='Enter'||e.key===' '){startLv(mSel);sfxSel();}});
@@ -1030,13 +1124,14 @@ function resumeG(){state=prevSt;document.getElementById('pov').classList.remove(
 function reinitLevel(){initG();initP();initE(LEVELS[curLv]);powerups=[];bullets=[];}
 
 function startLv(i){
-    curLv=i;const lv=LEVELS[i];lives=lv.lives;score=0;
+    curLv=i;const lv=LEVELS[i];const ship=SHIPS[curShip];
+    lives=Math.max(1,lv.lives+ship.lives);score=0;
     initG();initP();initE(lv);powerups=[];inputDir='none';P.length=0;FT.length=0;claimAC=[];cutsCt=0;
     document.getElementById('l-title').textContent='✦ '+lv.name+' ✦';document.getElementById('l-desc').textContent=GALAXIES[lv.galaxy].name+'\n\n'+lv.desc;
     showScr('s-lvl');state='levelIntro';
 }
 function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';state='playing';}
-function respawn(){for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;player.mt=0;inputDir='none';playerSpeed=8;trailSpeed=6;shieldTimer=0;hideScr();state='playing';}
+function respawn(){const ship=SHIPS[curShip];for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;player.mt=0;inputDir='none';playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;shieldTimer=0;hideScr();state='playing';}
 
 // Buttons
 window._playClick=()=>{sfxSel();showMap();};
@@ -1054,6 +1149,78 @@ document.getElementById('p-res').onclick=()=>{sfxSel();resumeG();};
 document.getElementById('p-rty').onclick=()=>{sfxSel();resumeG();startLv(curLv);};
 document.getElementById('p-map').onclick=()=>{sfxSel();resumeG();showMap();};
 document.getElementById('p-quit').onclick=()=>{sfxSel();resumeG();hideScr();state='title';showScr('s-title');document.getElementById('hud').style.display='none';};
+
+// ===== HANGAR =====
+let hangarSel=0;
+function showHangar(){
+    hangarSel=curShip;state='hangar';hideScr();
+    const ts=totalStars();
+    document.getElementById('h-stars').textContent='★ '+ts+' STARS EARNED';
+    const list=document.getElementById('ship-list');list.innerHTML='';
+    SHIPS.forEach((sh,i)=>{
+        const card=document.createElement('div');
+        card.className='ship-card'+(ts>=sh.starsNeeded?' unlocked':'locked')+(i===curShip?' selected':'');
+        const cvs=document.createElement('canvas');cvs.width=50;cvs.height=50;
+        const ctx=cvs.getContext('2d');
+        // Draw mini ship
+        ctx.translate(25,25);
+        const ms=18;
+        ctx.fillStyle=sh.color1;ctx.beginPath();ctx.moveTo(0,-ms);ctx.lineTo(-ms*0.5,ms*0.5);ctx.lineTo(ms*0.5,ms*0.5);ctx.closePath();ctx.fill();
+        ctx.fillStyle=sh.color2;ctx.beginPath();ctx.moveTo(0,-ms*0.6);ctx.lineTo(-ms*0.25,ms*0.2);ctx.lineTo(ms*0.25,ms*0.2);ctx.closePath();ctx.fill();
+        card.appendChild(cvs);
+        const nm=document.createElement('div');nm.className='sname';nm.textContent=sh.name;card.appendChild(nm);
+        if(ts<sh.starsNeeded){const lk=document.createElement('div');lk.className='slock';lk.textContent='★'+sh.starsNeeded;card.appendChild(lk);}
+        card.onclick=()=>{if(ts>=sh.starsNeeded){hangarSel=i;updateHangarDetail();sfxSel();}else beep(150,0.15,'sawtooth',0.06);};
+        list.appendChild(card);
+    });
+    updateHangarDetail();showScr('s-hangar');
+}
+function updateHangarDetail(){
+    const sh=SHIPS[hangarSel];const ts=totalStars();
+    document.getElementById('ship-name').textContent=sh.name+(hangarSel===curShip?' [ACTIVE]':'');
+    document.getElementById('ship-desc').textContent=sh.desc;
+    const bars=(v,max)=>'█'.repeat(Math.round(v/max*5))+'░'.repeat(5-Math.round(v/max*5));
+    document.getElementById('ship-stats').innerHTML=
+        'SPD '+bars(sh.speed,10)+'  TRAIL '+bars(sh.trailSpeed,9)+
+        '<br>FIRE '+bars(1/sh.fireRate,7)+'  DMG '+bars(sh.bulletDmg,2)+
+        '<br>'+sh.specialDesc;
+    // Draw preview
+    const pvs=document.getElementById('ship-preview');const pc=pvs.getContext('2d');
+    pc.clearRect(0,0,120,120);
+    // Simple ship preview
+    const ms=35;pc.save();pc.translate(60,65);
+    // Glow
+    const gg=pc.createRadialGradient(0,0,0,0,0,ms*1.5);
+    gg.addColorStop(0,sh.color2+'40');gg.addColorStop(1,'transparent');
+    pc.fillStyle=gg;pc.beginPath();pc.arc(0,0,ms*1.5,0,Math.PI*2);pc.fill();
+    // Wings
+    pc.fillStyle=sh.color1;
+    pc.beginPath();pc.moveTo(-ms*0.15,ms*0.1);pc.lineTo(-ms*0.7,ms*0.5);pc.lineTo(-ms*0.6,ms*0.2);pc.lineTo(-ms*0.2,-ms*0.3);pc.closePath();pc.fill();
+    pc.beginPath();pc.moveTo(ms*0.15,ms*0.1);pc.lineTo(ms*0.7,ms*0.5);pc.lineTo(ms*0.6,ms*0.2);pc.lineTo(ms*0.2,-ms*0.3);pc.closePath();pc.fill();
+    // Body
+    const bg2=pc.createLinearGradient(0,-ms,0,ms*0.4);
+    bg2.addColorStop(0,sh.color2);bg2.addColorStop(0.4,sh.color1);bg2.addColorStop(1,'#135');
+    pc.fillStyle=bg2;
+    pc.beginPath();pc.moveTo(0,-ms*0.9);pc.lineTo(-ms*0.2,ms*0.3);pc.lineTo(ms*0.2,ms*0.3);pc.closePath();pc.fill();
+    // Cockpit
+    pc.fillStyle='rgba(255,255,255,0.7)';pc.beginPath();pc.ellipse(0,-ms*0.3,ms*0.08,ms*0.12,0,0,Math.PI*2);pc.fill();
+    // Engine
+    pc.fillStyle=sh.color2;pc.beginPath();pc.moveTo(-ms*0.08,ms*0.3);pc.lineTo(0,ms*0.55);pc.lineTo(ms*0.08,ms*0.3);pc.fill();
+    pc.restore();
+    // Highlight selected card
+    document.querySelectorAll('.ship-card').forEach((card,i)=>{
+        card.classList.toggle('selected',i===hangarSel);
+    });
+}
+document.getElementById('b-select-ship').onclick=()=>{
+    const ts=totalStars();
+    if(ts>=SHIPS[hangarSel].starsNeeded){
+        curShip=hangarSel;writeS();sfxSel();
+        beep(880,0.1,'sine',0.08);setTimeout(()=>beep(1100,0.15,'sine',0.08),60);
+        showMap();
+    }
+};
+document.getElementById('b-hangar-back').onclick=()=>{sfxSel();showMap();};
 
 // ===== GAME LOOP =====
 let lt=0;
