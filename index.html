@@ -3201,11 +3201,22 @@ const dpObs=new MutationObserver(()=>{
     if(vis)posLockBtn();
 });
 dpObs.observe(dpEl,{attributes:true,attributeFilter:['style']});
-// Also check on resize
-window.addEventListener('resize',()=>{if(getComputedStyle(dpEl).display!=='none')posLockBtn();});
+// Also check on resize — re-clamp d-pad position
+window.addEventListener('resize',()=>{
+    if(getComputedStyle(dpEl).display!=='none'){
+        posLockBtn();
+        const r=dpEl.getBoundingClientRect();
+        if(r.right>window.innerWidth)dpEl.style.left=Math.max(0,window.innerWidth-dpEl.offsetWidth)+'px';
+        if(r.bottom>window.innerHeight){dpEl.style.bottom='8px';dpEl.style.top='auto';}
+    }
+});
 
 // Load saved position
-try{const sp=JSON.parse(localStorage.getItem('zd_dpad'));if(sp){dpEl.style.left=sp.x+'px';dpEl.style.bottom=sp.y+'px';}}catch(e){}
+try{const sp=JSON.parse(localStorage.getItem('zd_dpad'));if(sp){
+    const maxX=window.innerWidth-dpEl.offsetWidth;const maxBot=window.innerHeight-dpEl.offsetHeight;
+    dpEl.style.left=Math.max(0,Math.min(maxX,sp.x))+'px';
+    dpEl.style.bottom=Math.max(0,Math.min(maxBot,sp.y))+'px';
+}}catch(e){}
 
 lockBtn.onclick=()=>{
     dpadUnlocked=!dpadUnlocked;
