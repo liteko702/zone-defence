@@ -406,6 +406,63 @@ function totalStars(){return(save.stars||[]).reduce((a,b)=>a+(b||0),0);}
 
 // ===== STARFIELD =====
 const stars=[];for(let i=0;i<300;i++)stars.push({xp:Math.random(),yp:Math.random(),s:Math.random()*2+0.5,b:Math.random(),t:1+Math.random()*3});
+
+// ===== SHOOTING STARS & DEBRIS =====
+const shootingStars=[];
+const debris=[];
+// Init debris
+for(let i=0;i<25;i++)debris.push({x:Math.random(),y:Math.random(),s:Math.random()*2+1,vx:(Math.random()-0.5)*0.008,vy:(Math.random()-0.5)*0.005,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.02,a:0.15+Math.random()*0.25,shape:Math.floor(Math.random()*3)});
+
+function spawnShootingStar(){
+    const angle=Math.PI*0.15+Math.random()*Math.PI*0.2; // roughly top-left to bottom-right
+    const speed=0.4+Math.random()*0.6;
+    shootingStars.push({x:Math.random()*0.8,y:-0.02-Math.random()*0.1,vx:Math.cos(angle)*speed*0.001,vy:Math.sin(angle)*speed*0.001,life:0.6+Math.random()*0.8,maxLife:0.6+Math.random()*0.8,len:30+Math.random()*60});
+}
+
+function updateBgEffects(dt){
+    // Shooting stars
+    if(Math.random()<dt*0.4)spawnShootingStar(); // ~0.4 per second
+    for(let i=shootingStars.length-1;i>=0;i--){
+        const s=shootingStars[i];
+        s.x+=s.vx*dt*60;s.y+=s.vy*dt*60;s.life-=dt;
+        if(s.life<=0||s.x>1.2||s.y>1.2)shootingStars.splice(i,1);
+    }
+    // Debris
+    for(const d of debris){
+        d.x+=d.vx*dt;d.y+=d.vy*dt;d.rot+=d.rotV;
+        if(d.x<-0.05)d.x=1.05;if(d.x>1.05)d.x=-0.05;
+        if(d.y<-0.05)d.y=1.05;if(d.y>1.05)d.y=-0.05;
+    }
+}
+
+function drawBgEffects(time){
+    // Shooting stars
+    for(const s of shootingStars){
+        const a=Math.min(1,s.life/s.maxLife*2);
+        const sx=s.x*W,sy=s.y*H;
+        const angle=Math.atan2(s.vy,s.vx);
+        const tailX=sx-Math.cos(angle)*s.len,tailY=sy-Math.sin(angle)*s.len;
+        const grad=c.createLinearGradient(tailX,tailY,sx,sy);
+        grad.addColorStop(0,`rgba(255,255,255,0)`);
+        grad.addColorStop(0.7,`rgba(200,220,255,${a*0.6})`);
+        grad.addColorStop(1,`rgba(255,255,255,${a})`);
+        c.strokeStyle=grad;c.lineWidth=1.5;c.beginPath();c.moveTo(tailX,tailY);c.lineTo(sx,sy);c.stroke();
+        // Bright head
+        c.fillStyle=`rgba(255,255,255,${a})`;c.beginPath();c.arc(sx,sy,1.5,0,Math.PI*2);c.fill();
+    }
+    // Floating debris
+    for(const d of debris){
+        const dx=d.x*W,dy=d.y*H;
+        c.save();c.translate(dx,dy);c.rotate(d.rot);c.globalAlpha=d.a;
+        c.fillStyle=d.shape===0?'#554433':d.shape===1?'#443344':'#334455';
+        if(d.shape===0){c.fillRect(-d.s,-d.s*0.6,d.s*2,d.s*1.2);}
+        else if(d.shape===1){c.beginPath();c.moveTo(0,-d.s);c.lineTo(d.s,d.s);c.lineTo(-d.s,d.s*0.5);c.fill();}
+        else{c.beginPath();c.moveTo(-d.s,0);c.lineTo(0,-d.s*0.8);c.lineTo(d.s,0);c.lineTo(0,d.s*0.8);c.fill();}
+        c.restore();
+    }
+    c.globalAlpha=1;
+}
+
 function drawBg(time){
     c.fillStyle='#000008';c.fillRect(0,0,W,H);
     // Deep space nebulae (multiple layers)
@@ -434,6 +491,9 @@ function drawBg(time){
         c.fillStyle=sc;
         c.fillRect((s.xp*W)|0,(s.yp*H)|0,Math.ceil(s.s),Math.ceil(s.s));
     }
+    // Animated bg effects
+    updateBgEffects(Math.min(0.05,1/60));
+    drawBgEffects(time);
 }
 // Scanline overlay (drawn once to offscreen canvas for performance)
 let scanCv=null;
@@ -1586,8 +1646,9 @@ function renderGalaxyView(time){
 
     // Layout: 2×2 grid for 4 constellations, boss below center
     const topOff=14+fs+2+fs*0.4+8;
-    const bossH=hasBoss?50:0;
-    const gridH=H-topOff-50-bossH; // leave space for bottom bar + boss
+    const bossH=hasBoss?60:0;
+    const barH2=Math.max(36,H*0.08);
+    const gridH=H-topOff-barH2-bossH-10; // leave space for bottom bar + boss
     const gridW=W-20;
     const cellW=gridW/2, cellH=gridH/2;
     const cstSize=Math.min(cellW,cellH)*0.42;
@@ -1661,7 +1722,7 @@ function renderGalaxyView(time){
     // Boss node centered below the grid
     if(hasBoss){
         const j=cstList.length;
-        const cx=W/2, cy=topOff+gridH+bossH/2+5;
+        const cx=W/2, cy=topOff+gridH+bossH/2;
         const ul=bossLi<save.unlocked;
         const sel=j===mapSelConstellation;
         const nodeR=20;
@@ -1857,7 +1918,7 @@ function renderMap(time){
 
     // Handle zoom transitions
     if(mapMode==='zooming_in'||mapMode==='zooming_out'){
-        mapTransT+=dt*2.2; // ~0.45s transition
+        mapTransT+=dt*4.0; // ~0.25s transition (snappy)
         if(mapTransT>=1){
             mapTransT=1;
             if(mapMode==='zooming_in'){mapMode='constellation';mapZoom=1;mapCamX=0;mapCamY=0;}
@@ -2006,13 +2067,11 @@ function zoomOutToGalaxy(){
     sfxSel();
 }
 
-// Map click handler
-cv.addEventListener('click',e=>{
+// Map click handler — use both touchend (instant on mobile) and click (desktop)
+let _mapTapHandled=false;
+function handleMapTap(mx,my){
     if(state!=='map')return;
-    if(mapMode==='zooming_in'||mapMode==='zooming_out')return; // ignore during transitions
-    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
-    const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
-
+    if(mapMode==='zooming_in'||mapMode==='zooming_out')return;
     // Hangar button
     const hb=renderMap._hb;if(hb&&mx>=hb.x&&mx<=hb.x+hb.w&&my>=hb.y&&my<=hb.y+hb.h){sfxSel();showHangar();return;}
 
@@ -2053,6 +2112,18 @@ cv.addEventListener('click',e=>{
             }
         }
     }
+}
+cv.addEventListener('touchend',e=>{
+    if(state!=='map')return;
+    _mapTapHandled=true;setTimeout(()=>_mapTapHandled=false,400);
+    const t=e.changedTouches[0];if(!t)return;
+    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+    handleMapTap((t.clientX-rect.left)*sx,(t.clientY-rect.top)*sy);
+},{passive:true});
+cv.addEventListener('click',e=>{
+    if(_mapTapHandled)return; // already handled by touchend
+    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+    handleMapTap((e.clientX-rect.left)*sx,(e.clientY-rect.top)*sy);
 });
 
 // Keyboard controls

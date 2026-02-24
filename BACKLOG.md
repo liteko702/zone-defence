@@ -219,3 +219,9 @@
 5. **Level intro cinematic** — Constellation draw animation
 6. **Settings screen** — Volume controls, d-pad options
 7. **PWA manifest** — Installable on mobile home screen
+
+## Snake/Formation Enemies (Later Levels)
+- Enemies that fly in patterns: lines, snake-like forms
+- Player can follow and pick them off along a path
+- Introduce in later universe levels for variety
+
