@@ -283,9 +283,38 @@ function initE(lvl){
     let ex,ey;do{ex=3+Math.floor(Math.random()*(COLS-6));ey=3+Math.floor(Math.random()*(ROWS-6));}while(grid[ey][ex]!==EMPTY);
     const a=Math.random()*Math.PI*2;enemies.push({x:ex,y:ey,fx:ex,fy:ey,dx:Math.cos(a),dy:Math.sin(a),speed:ed.speed,origSpeed:ed.speed,chase:ed.chase||false,rot:0});}
 }
+function relocateE(e){
+    // Teleport enemy to random EMPTY cell far from player
+    let best=null,bestD=0;
+    for(let tries=0;tries<80;tries++){
+        const rx=3+Math.floor(Math.random()*(COLS-6)),ry=3+Math.floor(Math.random()*(ROWS-6));
+        if(grid[ry][rx]!==EMPTY)continue;
+        const d=(rx-player.x)**2+(ry-player.y)**2;
+        if(d>bestD){bestD=d;best={x:rx,y:ry};}
+    }
+    if(best){e.fx=e.x=best.x;e.fy=e.y=best.y;const a=Math.random()*Math.PI*2;e.dx=Math.cos(a);e.dy=Math.sin(a);
+    sp(e.x*CELL+CELL/2,e.y*CELL+CELL/2,e.chase?'#f42':'#c4f',12,40,0.3);}
+}
+function isTrapped(e){
+    // Flood fill from enemy position — if reachable EMPTY area is tiny, enemy is trapped
+    const ex=Math.round(e.fx),ey=Math.round(e.fy);
+    if(cAt(ex,ey)!==EMPTY)return true;
+    const vis=new Set();const q=[ex+','+ey];vis.add(q[0]);
+    while(q.length&&vis.size<20){
+        const[cx,cy]=q.shift().split(',').map(Number);
+        for(const[dx,dy]of[[0,-1],[0,1],[-1,0],[1,0]]){
+            const k=(cx+dx)+','+(cy+dy);
+            if(!vis.has(k)&&cAt(cx+dx,cy+dy)===EMPTY){vis.add(k);q.push(k);}
+        }
+    }
+    return vis.size<20; // trapped if fewer than 20 reachable empty cells
+}
 function moveE(dt){
     for(const e of enemies){
         if(e.speed<e.origSpeed)e.speed=Math.min(e.speed+dt*0.5,e.origSpeed);
+        // Check if trapped in claimed territory
+        if(!e.stuckT)e.stuckT=0;
+        if(isTrapped(e)){e.stuckT+=dt;if(e.stuckT>0.5){relocateE(e);e.stuckT=0;continue;}}else e.stuckT=0;
         if(e.chase){const px=player.x-e.x,py=player.y-e.y,d=Math.sqrt(px*px+py*py)||1;e.dx=px/d;e.dy=py/d;}
         e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
         const nx=Math.round(e.fx),ny=Math.round(e.fy),cc=cAt(nx,ny);
