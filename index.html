@@ -472,9 +472,11 @@ gameReady=true;
 let shakeA=0,shakeD=0,claimAC=[],claimAT=0;
 let powerups=[],playerSpeed=8,trailSpeed=6,shieldTimer=0;
 let bullets=[],shootTimer=0;
-const SHOOT_INTERVAL=0.35; // auto-fire rate in seconds
 const BULLET_SPEED=18; // grid cells per second
 let captureKills=0; // enemies eliminated by enclosure
+const MIN_ENEMIES=1; // always keep at least 1 alive
+let enemyRespawnQueue=[]; // {timer, def}
+function canShoot(){return LEVELS[curLv]?.galaxy>=1;} // no shooting in Galaxy 1
 
 const PICKUP_RADIUS=2; // grid cells — collect within 2 cells
 const PTYPE=[
@@ -867,7 +869,7 @@ function updateBullets(dt){
     // Auto-fire when moving
     shootTimer-=dt;
     const ship=SHIPS[curShip];
-    if(inputDir!=='none'&&shootTimer<=0&&state==='playing'){
+    if(canShoot()&&inputDir!=='none'&&shootTimer<=0&&state==='playing'){
         const[dx,dy]=DIR[inputDir];
         bullets.push({x:player.vx*CELL+CELL/2,y:player.vy*CELL+CELL/2+GRID_TOP,dx,dy,life:1.5,dmg:ship.bulletDmg});
         shootTimer=ship.fireRate;sfxShoot();
@@ -902,6 +904,11 @@ function updateBullets(dt){
                     e.dead=true;score+=200;
                     addFT(ex,ey-GRID_TOP-10,'+200','#ff0',9);
                     sp(ex,ey-GRID_TOP,e.type==='shield'?'#ff0':'#f42',20,60,0.4);
+                    // Queue respawn if too few enemies would remain
+                    const alive=enemies.filter(en=>!en.dead).length;
+                    if(alive<MIN_ENEMIES){
+                        enemyRespawnQueue.push({timer:2.5,speed:e.origSpeed,type:'bounce'});
+                    }
                 }else{
                     // Shield hit — flash
                     addFT(ex,ey-GRID_TOP-10,'SHIELD HIT','#ff0',7);
@@ -925,6 +932,11 @@ function checkCaptureKills(){
             const px=e.fx*CELL+CELL/2,py=e.fy*CELL+CELL/2;
             addFT(px,py-10,'CAPTURED! +500','#0ff',11);
             sp(px,py,'#0ff',25,60,0.5);
+            // Queue respawn if too few remain
+            const alive2=enemies.filter(en=>!en.dead).length;
+            if(alive2<MIN_ENEMIES){
+                enemyRespawnQueue.push({timer:3,speed:e.origSpeed||3,type:'bounce'});
+            }
         }
     }
 }
@@ -1275,8 +1287,11 @@ function reinitLevel(){initG();initP();initE(LEVELS[curLv]);powerups=[];bullets=
 function startLv(i){
     curLv=i;const lv=LEVELS[i];const ship=SHIPS[curShip];
     lives=Math.max(1,lv.lives+ship.lives);score=0;
-    initG();initP();initE(lv);powerups=[];inputDir='none';P.length=0;FT.length=0;claimAC=[];cutsCt=0;
-    document.getElementById('l-title').textContent='✦ '+lv.name+' ✦';document.getElementById('l-desc').textContent=GALAXIES[lv.galaxy].name+'\n\n'+lv.desc;
+    initG();initP();initE(lv);powerups=[];inputDir='none';P.length=0;FT.length=0;claimAC=[];cutsCt=0;enemyRespawnQueue=[];
+    document.getElementById('l-title').textContent='✦ '+lv.name+' ✦';
+    let desc=GALAXIES[lv.galaxy].name+'\n\n'+lv.desc;
+    if(lv.galaxy>=1&&curLv===4)desc+='\n\n🔫 WEAPONS ONLINE!';
+    document.getElementById('l-desc').textContent=desc;
     showScr('s-lvl');state='levelIntro';
 }
 function beginLv(){hideScr();document.getElementById('hud').style.display='flex';document.getElementById('dp').style.display='ontouchstart' in window||navigator.maxTouchPoints>0?'block':'none';state='playing';startMusic(LEVELS[curLv]?.boss?'boss':'gameplay');}
@@ -1376,7 +1391,22 @@ document.getElementById('b-hangar-back').onclick=()=>{sfxSel();showMap();};
 let lt=0;
 function loop(time){
     const dt=Math.min((time-lt)/1000,0.05);lt=time;
-    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();}
+    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();
+    // Process enemy respawn queue
+    for(let i=enemyRespawnQueue.length-1;i>=0;i--){
+        enemyRespawnQueue[i].timer-=dt;
+        if(enemyRespawnQueue[i].timer<=0){
+            const r=enemyRespawnQueue[i];let ex,ey,tries=0;
+            do{ex=3+Math.floor(Math.random()*(COLS-6));ey=3+Math.floor(Math.random()*(ROWS-6));tries++;}while(grid[ey][ex]!==EMPTY&&tries<60);
+            if(tries<60){
+                const a=Math.random()*Math.PI*2;
+                enemies.push({x:ex,y:ey,fx:ex,fy:ey,dx:Math.cos(a),dy:Math.sin(a),speed:r.speed,origSpeed:r.speed,type:r.type,chase:r.type==='chase',hp:r.type==='shield'?2:1,phaseTimer:3+Math.random()*4,orbitAngle:Math.random()*Math.PI*2,rot:0,stuckT:0});
+                sp(ex*CELL+CELL/2,ey*CELL+CELL/2,'#fff',15,40,0.4);
+                addFT(ex*CELL+CELL/2,ey*CELL,'⚠ INCOMING','#f80',8);
+            }
+            enemyRespawnQueue.splice(i,1);
+        }
+    }}
     if(state==='paused'||state==='dying')lerpPlayer(dt);
     if(state==='dying'){deathT-=dt;if(deathT<=0){document.getElementById('d-info').textContent=`${lives} ♥ LEFT - ${getPct()}% CLAIMED`;showScr('s-die');state='dead_pause';}}
     if(claimAT>0)claimAT-=dt;if(shakeD>0)shakeD-=dt;
