@@ -2678,81 +2678,100 @@ function renderHangar(time){
 }
 
 function renderShipsTab(time,cy,ch,fs){
-    // Horizontal scrollable row of ship cards at top, detail panel below
     const isWide=W>H*1.2;
-    const cardH2=isWide?ch*0.3:70; // card row height
-    const cardW=Math.max(55,Math.min(70,W/SHIPS.length-6));
-    const totalCardsW=SHIPS.length*(cardW+6)-6;
-    const startX=Math.max(6,(W-totalCardsW)/2);
-    const cardRowY=cy+4;
+    const ts=totalStars();
+    const n=SHIPS.length;
 
-    for(let i=0;i<SHIPS.length;i++){
-        const sh=SHIPS[i];const owned=isShipOwned(i);const starOk=totalStars()>=sh.starsNeeded;
-        const cx2=startX+i*(cardW+6)+cardW/2;
-        const cy2=cardRowY+cardH2/2;
+    // Responsive grid: portrait=3 cols, landscape=6 cols (1 row)
+    const cols=isWide?n:3;
+    const rows=Math.ceil(n/cols);
+    const pad=6;
+    const cardW=Math.floor((W-pad*(cols+1))/cols);
+    const cardH2=Math.min(isWide?ch*0.28:Math.floor((ch*0.45-pad*(rows+1))/rows),90);
+    const gridW=cols*cardW+(cols-1)*pad;
+    const startX=Math.floor((W-gridW)/2);
+    const cardRowY=cy+4;
+    let gridH=rows*cardH2+(rows-1)*pad;
+
+    for(let i=0;i<n;i++){
+        const sh=SHIPS[i];const owned=isShipOwned(i);const starOk=ts>=sh.starsNeeded;
+        const col=i%cols,row=Math.floor(i/cols);
+        const cx2=startX+col*(cardW+pad)+cardW/2;
+        const cyCard=cardRowY+row*(cardH2+pad);
         const sel=i===hangarSel;
 
-        // Card bg
-        c.fillStyle=sel?'rgba(0,80,150,0.5)':'rgba(0,0,30,0.7)';
-        c.fillRect(cx2-cardW/2,cardRowY,cardW,cardH2);
-        c.strokeStyle=i===curShip?'#0f0':sel?'#0af':owned?'#446':'#223';
-        c.lineWidth=sel?2.5:1;c.strokeRect(cx2-cardW/2,cardRowY,cardW,cardH2);
+        // Card bg — brighter so cards are visible
+        c.fillStyle=sel?'rgba(0,80,150,0.6)':'rgba(10,15,40,0.85)';
+        c.fillRect(cx2-cardW/2,cyCard,cardW,cardH2);
+        c.strokeStyle=i===curShip?'#0f0':sel?'#0af':owned?'#468':'#345';
+        c.lineWidth=i===curShip?2.5:sel?2:1;
+        c.strokeRect(cx2-cardW/2,cyCard,cardW,cardH2);
 
-        // Mini ship
-        const shipSize=Math.min(cardW*0.35,cardH2*0.35);
+        // Ship preview — bigger
+        const shipSize=Math.min(cardW*0.4,cardH2*0.45,30);
+        const shipY=cyCard+cardH2*0.42;
         if(owned||starOk){
-            drawShipDetailed(c,sh,cx2,cy2-6,shipSize,time);
+            drawShipDetailed(c,sh,cx2,shipY,shipSize,time);
         }else{
-            c.globalAlpha=0.3;drawShipDetailed(c,sh,cx2,cy2-6,shipSize,time);c.globalAlpha=1;
-            c.fillStyle='#556';c.font='10px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
-            c.fillText('🔒',cx2,cy2-6);
+            c.globalAlpha=0.25;drawShipDetailed(c,sh,cx2,shipY,shipSize,time);c.globalAlpha=1;
+            c.fillStyle='#667';c.font=Math.max(12,shipSize)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('🔒',cx2,shipY);
         }
         // Name
-        c.fillStyle=owned?'#0af':starOk?'#ff0':'#556';
-        c.font=Math.max(5,Math.min(7,cardW*0.1))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
-        c.fillText(sh.name,cx2,cardRowY+cardH2-3);
+        c.fillStyle=i===curShip?'#0f0':owned?'#0af':starOk?'#ff0':'#556';
+        c.font=Math.max(6,Math.min(9,cardW*0.12))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+        c.fillText(sh.name,cx2,cyCard+cardH2-4);
 
-        _hangarBtns.push({x:cx2-cardW/2,y:cardRowY,w:cardW,h:cardH2,action:'ship',idx:i});
+        // Cost tag for unowned
+        if(!owned){
+            c.fillStyle=starOk?'#ff0':'#556';
+            c.font=Math.max(5,cardW*0.08)+'px "Press Start 2P"';c.textBaseline='top';
+            c.fillText(sh.cost>0?'🪙'+sh.cost:'FREE',cx2,cyCard+3);
+        }
+        if(i===curShip){
+            c.fillStyle='#0f0';c.font=Math.max(5,cardW*0.08)+'px "Press Start 2P"';c.textBaseline='top';
+            c.fillText('✓ EQUIPPED',cx2,cyCard+3);
+        }
+
+        _hangarBtns.push({x:cx2-cardW/2,y:cyCard,w:cardW,h:cardH2,action:'ship',idx:i});
     }
 
-    // Detail panel takes remaining space
-    const detailX=6;
-    const detailY=cardRowY+cardH2+8;
-    const detailW=W-12;
-    const detailH=ch-cardH2-16;
+    // Detail panel below grid
+    const detailY=cardRowY+gridH+10;
+    const detailH=ch-gridH-20;
+    if(detailH<60)return; // not enough room
 
-    // Detail panel
     const sh=SHIPS[hangarSel];const owned=isShipOwned(hangarSel);
-    const dpX=detailX+10,dpY=detailY+4,dpW=detailW-20,dpH=detailH-8;
-    c.fillStyle='rgba(0,0,30,0.8)';c.fillRect(dpX,dpY,dpW,dpH);
-    c.strokeStyle='#335';c.lineWidth=1;c.strokeRect(dpX,dpY,dpW,dpH);
+    const dpX=10,dpY=detailY,dpW=W-20,dpH=detailH;
+    c.fillStyle='rgba(5,10,30,0.85)';c.fillRect(dpX,dpY,dpW,dpH);
+    c.strokeStyle='#345';c.lineWidth=1;c.strokeRect(dpX,dpY,dpW,dpH);
 
-    // Large ship preview
-    const pvSize=Math.min(dpW*0.25,dpH*0.4,50);
-    const pvX=dpX+dpW/2,pvY=dpY+pvSize+15;
+    // Layout: ship preview left, stats right (or stacked in narrow)
+    const pvSize=Math.min(dpW*0.2,dpH*0.4,45);
+    const pvX=dpX+dpW*0.2,pvY=dpY+dpH*0.35;
     drawShipDetailed(c,sh,pvX,pvY,pvSize,time);
 
-    // Name + status
-    const nfs=Math.max(8,fs*0.6);
+    // Name under preview
+    const nfs=Math.max(7,fs*0.55);
     c.fillStyle=sh.color2;c.font=nfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText(sh.name,pvX,pvY+pvSize+8);
-    const statusY=pvY+pvSize+8+nfs+4;
+    c.fillText(sh.name,pvX,pvY+pvSize+6);
     c.fillStyle=hangarSel===curShip?'#0f0':owned?'#0af':'#ff0';
     c.font=Math.max(5,nfs*0.5)+'px "Press Start 2P"';
-    c.fillText(hangarSel===curShip?'[EQUIPPED]':owned?'[OWNED]':('★'+sh.starsNeeded+' · 🪙'+sh.cost),pvX,statusY);
+    c.fillText(hangarSel===curShip?'[EQUIPPED]':owned?'[OWNED]':('★'+sh.starsNeeded+' · 🪙'+sh.cost),pvX,pvY+pvSize+6+nfs+2);
 
-    // Stat bars
-    const barStartY=statusY+nfs*0.5+8;
-    const barW2=dpW*0.6,barH2=8,barX2=dpX+dpW/2-barW2/2;
+    // Stat bars on right side
+    const barX2=dpX+dpW*0.42,barW2=dpW*0.52,barH2=Math.max(6,dpH*0.06);
     const sfs=Math.max(5,fs*0.3);
+    const barStartY=dpY+12;
     const stats=[
         {label:'SPEED',val:sh.speed,max:10,col:'#0f0'},
         {label:'TRAIL',val:sh.trailSpeed,max:9,col:'#0af'},
         {label:'FIRE',val:sh.canShoot?(1/sh.fireRate)*0.35:0,max:3,col:'#ff0'},
         {label:'DMG',val:sh.bulletDmg,max:2,col:'#f80'},
     ];
+    const barGap=barH2+sfs+4;
     for(let si=0;si<stats.length;si++){
-        const s=stats[si],sy=barStartY+si*(barH2+sfs+4);
+        const s=stats[si],sy=barStartY+si*barGap;
         c.fillStyle='#889';c.font=sfs+'px "Press Start 2P"';c.textAlign='right';c.textBaseline='top';
         c.fillText(s.label,barX2-4,sy);
         c.fillStyle='#112';c.fillRect(barX2,sy,barW2,barH2);
@@ -2760,15 +2779,13 @@ function renderShipsTab(time,cy,ch,fs){
         c.strokeStyle='#335';c.lineWidth=0.5;c.strokeRect(barX2,sy,barW2,barH2);
     }
 
-    // Special ability text
-    const specY=barStartY+stats.length*(barH2+sfs+4)+4;
-    c.fillStyle='#c8f';c.font=sfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
-    c.fillText(sh.specialDesc,dpX+dpW/2,specY);
-
-    // Weapon indicator
+    // Special ability + weapon info
+    const specY=barStartY+stats.length*barGap+4;
+    c.fillStyle='#c8f';c.font=sfs+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
+    c.fillText(sh.specialDesc,barX2,specY);
     if(!sh.canShoot){
-        c.fillStyle='#f44';c.font=Math.max(6,sfs*1.2)+'px "Press Start 2P"';
-        c.fillText('⊘ NO WEAPONS',dpX+dpW/2,specY+sfs+6);
+        c.fillStyle='#f44';c.font=Math.max(6,sfs*1.1)+'px "Press Start 2P"';
+        c.fillText('⊘ NO WEAPONS',barX2,specY+sfs+4);
     }
 }
 
