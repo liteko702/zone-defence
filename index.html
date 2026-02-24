@@ -79,21 +79,7 @@
     <div class="scr" id="s-over"><h2 style="color:#f44">GAME OVER</h2><p class="st" id="o-sc"></p><p class="st" id="o-info"></p><button class="b br" id="b-retry">RETRY</button><button class="b" id="b-map1">MAP</button></div>
     <div class="scr" id="s-win"><h2 style="color:#0f0">★ SECTOR CLEAR ★</h2><p class="st" id="w-sc"></p><p class="st" id="w-info"></p><div id="w-st" style="font-size:clamp(16px,4vw,24px);color:#ff0"></div><button class="b bg" id="b-next">NEXT ▶</button><button class="b" id="b-map2">MAP</button></div>
     <div class="scr" id="s-done"><h1 style="color:#ff0">★ COMPLETE ★</h1><p class="st" id="c-sc"></p><button class="b bg" id="b-again">NEW GAME</button></div>
-    <div class="scr" id="s-hangar" style="max-width:95vw;max-height:90vh">
-        <h2>⚙ HANGAR</h2>
-        <p id="h-stars" style="color:#ff0"></p>
-        <div id="ship-list" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:420px"></div>
-        <div id="ship-detail" style="text-align:center;margin-top:4px">
-            <canvas id="ship-preview" width="120" height="120" style="image-rendering:auto"></canvas>
-            <p id="ship-name" style="color:#0ff;font-size:clamp(10px,3vw,14px)"></p>
-            <p id="ship-desc" style="color:#8af;font-size:clamp(7px,2vw,9px);line-height:1.6"></p>
-            <p id="ship-stats" style="color:#0fa;font-size:clamp(7px,2vw,9px);line-height:1.8"></p>
-        </div>
-        <div style="display:flex;gap:8px">
-            <button class="b bg" id="b-select-ship">SELECT</button>
-            <button class="b" id="b-hangar-back">BACK</button>
-        </div>
-    </div>
+    <!-- Hangar is now rendered on canvas -->
 </div>
 <div id="pov"><h2>PAUSED</h2><button class="b bg" id="p-res">▶ CONTINUE</button><button class="b" id="p-rty">↺ RETRY</button><button class="b" id="p-map">MAP</button><button class="b" id="p-mus">♪ MUSIC: ON</button><button class="b br" id="p-quit">✕ QUIT</button></div>
 <!-- Settings panel -->
@@ -2230,96 +2216,275 @@ function isShipOwned(i){
 }
 function canAffordShip(i){return(save.coins||0)>=SHIPS[i].cost;}
 
+// ===== CANVAS HANGAR =====
+let hangarTab=0; // 0=ships, 1=upgrades
+let hangarScroll=0;
+let _hangarBtns=[]; // hit targets
+
 function showHangar(){
-    hangarSel=curShip;state='hangar';hideScr();
-    const ts=totalStars();
-    document.getElementById('h-stars').textContent='🪙 '+(save.coins||0)+'  ·  ★ '+ts;
-    const list=document.getElementById('ship-list');list.innerHTML='';
-    SHIPS.forEach((sh,i)=>{
-        const owned=isShipOwned(i);
-        const starOk=ts>=sh.starsNeeded;
-        const card=document.createElement('div');
-        card.className='ship-card'+(owned?' unlocked':starOk?' buyable':' locked')+(i===curShip?' selected':'');
-        const cvs=document.createElement('canvas');cvs.width=50;cvs.height=50;
-        const ctx=cvs.getContext('2d');
-        ctx.translate(25,25);const ms=18;
-        ctx.fillStyle=sh.color1;ctx.beginPath();ctx.moveTo(0,-ms);ctx.lineTo(-ms*0.5,ms*0.5);ctx.lineTo(ms*0.5,ms*0.5);ctx.closePath();ctx.fill();
-        ctx.fillStyle=sh.color2;ctx.beginPath();ctx.moveTo(0,-ms*0.6);ctx.lineTo(-ms*0.25,ms*0.2);ctx.lineTo(ms*0.25,ms*0.2);ctx.closePath();ctx.fill();
-        if(sh.canShoot){ctx.fillStyle='#ff0';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText('🔫',0,ms*0.5+10);}
-        card.appendChild(cvs);
-        const nm=document.createElement('div');nm.className='sname';nm.textContent=sh.name;card.appendChild(nm);
-        if(!owned&&!starOk){const lk=document.createElement('div');lk.className='slock';lk.textContent='★'+sh.starsNeeded;card.appendChild(lk);}
-        else if(!owned){const lk=document.createElement('div');lk.className='slock';lk.style.color='#ff0';lk.textContent='🪙'+sh.cost;card.appendChild(lk);}
-        card.onclick=()=>{if(owned||starOk){hangarSel=i;updateHangarDetail();sfxSel();}else beep(150,0.15,'sawtooth',0.06);};
-        list.appendChild(card);
-    });
-    updateHangarDetail();showScr('s-hangar');
+    hangarSel=curShip;hangarTab=0;hangarScroll=0;state='hangar';hideScr();
+    document.getElementById('hud').style.display='none';
+    document.getElementById('dp').style.display='none';
 }
-function updateHangarDetail(){
-    const sh=SHIPS[hangarSel];const ts=totalStars();
-    const owned=isShipOwned(hangarSel);
-    let nameStr=sh.name;
-    if(hangarSel===curShip)nameStr+=' [ACTIVE]';
-    else if(owned)nameStr+=' [OWNED]';
-    else nameStr+=' [🪙 '+sh.cost+']';
-    document.getElementById('ship-name').textContent=nameStr;
-    document.getElementById('ship-desc').textContent=sh.desc;
-    const bars=(v,max)=>'█'.repeat(Math.round(v/max*5))+'░'.repeat(5-Math.round(v/max*5));
-    let statsHtml='SPD '+bars(sh.speed,10)+'  TRAIL '+bars(sh.trailSpeed,9);
+
+function drawShipDetailed(ctx,sh,cx,cy,size,time){
+    const ms=size;
+    ctx.save();ctx.translate(cx,cy);
+    // Engine glow
+    const glow=ctx.createRadialGradient(0,ms*0.4,0,0,ms*0.4,ms*0.8);
+    glow.addColorStop(0,sh.color2+'60');glow.addColorStop(1,'transparent');
+    ctx.fillStyle=glow;ctx.beginPath();ctx.arc(0,ms*0.4,ms*0.8,0,Math.PI*2);ctx.fill();
+    // Wings
+    ctx.fillStyle=sh.color1;
+    ctx.beginPath();ctx.moveTo(-ms*0.15,ms*0.05);ctx.lineTo(-ms*0.8,ms*0.55);ctx.lineTo(-ms*0.75,ms*0.3);ctx.lineTo(-ms*0.6,ms*0.15);ctx.lineTo(-ms*0.2,-ms*0.35);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(ms*0.15,ms*0.05);ctx.lineTo(ms*0.8,ms*0.55);ctx.lineTo(ms*0.75,ms*0.3);ctx.lineTo(ms*0.6,ms*0.15);ctx.lineTo(ms*0.2,-ms*0.35);ctx.closePath();ctx.fill();
+    // Wing tips
+    ctx.fillStyle=sh.color2+'80';
+    ctx.beginPath();ctx.moveTo(-ms*0.75,ms*0.35);ctx.lineTo(-ms*0.85,ms*0.6);ctx.lineTo(-ms*0.65,ms*0.4);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(ms*0.75,ms*0.35);ctx.lineTo(ms*0.85,ms*0.6);ctx.lineTo(ms*0.65,ms*0.4);ctx.closePath();ctx.fill();
+    // Body
+    const bg=ctx.createLinearGradient(0,-ms,0,ms*0.4);
+    bg.addColorStop(0,sh.color2);bg.addColorStop(0.35,sh.color1);bg.addColorStop(1,'#135');
+    ctx.fillStyle=bg;
+    ctx.beginPath();ctx.moveTo(0,-ms*0.95);ctx.bezierCurveTo(-ms*0.15,-ms*0.7,-ms*0.25,ms*0.1,-ms*0.2,ms*0.35);ctx.lineTo(ms*0.2,ms*0.35);ctx.bezierCurveTo(ms*0.25,ms*0.1,ms*0.15,-ms*0.7,0,-ms*0.95);ctx.fill();
+    // Cockpit
+    const cg=ctx.createRadialGradient(0,-ms*0.35,0,0,-ms*0.3,ms*0.15);
+    cg.addColorStop(0,'rgba(255,255,255,0.9)');cg.addColorStop(0.5,'rgba(150,200,255,0.6)');cg.addColorStop(1,'rgba(50,100,200,0.3)');
+    ctx.fillStyle=cg;ctx.beginPath();ctx.ellipse(0,-ms*0.3,ms*0.1,ms*0.15,0,0,Math.PI*2);ctx.fill();
+    // Engine exhaust
+    const ep=0.5+0.5*Math.sin((time||0)*0.01);
+    ctx.fillStyle=sh.color2;ctx.globalAlpha=0.6+ep*0.4;
+    ctx.beginPath();ctx.moveTo(-ms*0.1,ms*0.35);ctx.lineTo(0,ms*0.35+ms*0.3*(0.6+ep*0.4));ctx.lineTo(ms*0.1,ms*0.35);ctx.fill();
+    ctx.globalAlpha=1;
+    // Weapon hardpoints
     if(sh.canShoot){
-        statsHtml+='<br>FIRE '+bars(1/(sh.fireRate||1),7)+'  DMG '+bars(sh.bulletDmg,2);
-    }else{
-        statsHtml+='<br><span style="color:#f44">NO WEAPONS</span>';
+        ctx.fillStyle='#ff0';ctx.globalAlpha=0.7+0.3*ep;
+        ctx.beginPath();ctx.arc(-ms*0.35,ms*0.05,ms*0.04,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(ms*0.35,ms*0.05,ms*0.04,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=1;
     }
-    statsHtml+='<br>'+sh.specialDesc;
-    document.getElementById('ship-stats').innerHTML=statsHtml;
-    // Update button text
-    const btn=document.getElementById('b-select-ship');
-    if(hangarSel===curShip)btn.textContent='EQUIPPED';
-    else if(owned)btn.textContent='SELECT';
-    else if(canAffordShip(hangarSel))btn.textContent='BUY 🪙'+sh.cost;
-    else btn.textContent='NEED 🪙'+sh.cost;
-    // Draw preview
-    const pvs=document.getElementById('ship-preview');const pc=pvs.getContext('2d');
-    pc.clearRect(0,0,120,120);
-    const ms2=35;pc.save();pc.translate(60,65);
-    const gg=pc.createRadialGradient(0,0,0,0,0,ms2*1.5);
-    gg.addColorStop(0,sh.color2+'40');gg.addColorStop(1,'transparent');
-    pc.fillStyle=gg;pc.beginPath();pc.arc(0,0,ms2*1.5,0,Math.PI*2);pc.fill();
-    pc.fillStyle=sh.color1;
-    pc.beginPath();pc.moveTo(-ms2*0.15,ms2*0.1);pc.lineTo(-ms2*0.7,ms2*0.5);pc.lineTo(-ms2*0.6,ms2*0.2);pc.lineTo(-ms2*0.2,-ms2*0.3);pc.closePath();pc.fill();
-    pc.beginPath();pc.moveTo(ms2*0.15,ms2*0.1);pc.lineTo(ms2*0.7,ms2*0.5);pc.lineTo(ms2*0.6,ms2*0.2);pc.lineTo(ms2*0.2,-ms2*0.3);pc.closePath();pc.fill();
-    const bg2=pc.createLinearGradient(0,-ms2,0,ms2*0.4);
-    bg2.addColorStop(0,sh.color2);bg2.addColorStop(0.4,sh.color1);bg2.addColorStop(1,'#135');
-    pc.fillStyle=bg2;
-    pc.beginPath();pc.moveTo(0,-ms2*0.9);pc.lineTo(-ms2*0.2,ms2*0.3);pc.lineTo(ms2*0.2,ms2*0.3);pc.closePath();pc.fill();
-    pc.fillStyle='rgba(255,255,255,0.7)';pc.beginPath();pc.ellipse(0,-ms2*0.3,ms2*0.08,ms2*0.12,0,0,Math.PI*2);pc.fill();
-    pc.fillStyle=sh.color2;pc.beginPath();pc.moveTo(-ms2*0.08,ms2*0.3);pc.lineTo(0,ms2*0.55);pc.lineTo(ms2*0.08,ms2*0.3);pc.fill();
-    if(sh.canShoot){pc.fillStyle='#ff0';pc.font='bold 10px sans-serif';pc.textAlign='center';pc.fillText('🔫',0,ms2*0.55+14);}
-    pc.restore();
-    document.querySelectorAll('.ship-card').forEach((card,i)=>{card.classList.toggle('selected',i===hangarSel);});
+    ctx.restore();
 }
-document.getElementById('b-select-ship').onclick=()=>{
-    const sh=SHIPS[hangarSel];
-    const owned=isShipOwned(hangarSel);
-    if(hangarSel===curShip)return; // already equipped
-    if(owned){
-        curShip=hangarSel;writeS();sfxSel();
-        beep(880,0.1,'sine',0.08);setTimeout(()=>beep(1100,0.15,'sine',0.08),60);
-        showMap();
-    }else if(canAffordShip(hangarSel)){
-        // Purchase!
-        save.coins-=sh.cost;
-        if(!save.purchased.ships)save.purchased.ships=['viper'];
-        save.purchased.ships.push(sh.id);
-        curShip=hangarSel;writeS();sfxSel();
-        beep(660,0.1,'sine',0.06);beep(880,0.15,'sine',0.08);setTimeout(()=>beep(1100,0.2,'sine',0.1),100);
-        showMap();
-    }else{
-        beep(150,0.15,'sawtooth',0.06); // can't afford
+
+function renderHangar(time){
+    drawBg(time);
+    const fs=Math.max(10,Math.min(14,W*0.03));
+    const ts=totalStars();
+    _hangarBtns=[];
+
+    // Title bar
+    c.fillStyle='rgba(0,0,20,0.9)';c.fillRect(0,0,W,40);
+    c.strokeStyle='rgba(100,150,255,0.3)';c.lineWidth=1;c.beginPath();c.moveTo(0,40);c.lineTo(W,40);c.stroke();
+    c.fillStyle='#0ff';c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('⚙ HANGAR',W/2,20);
+    c.fillStyle='#ff0';c.font=(fs*0.4)+'px "Press Start 2P"';c.textAlign='right';
+    c.fillText('🪙 '+(save.coins||0)+'  ★ '+ts,W-12,20);
+
+    // Back button (top-left)
+    const bbW=Math.max(50,W*0.12),bbH=30;
+    c.fillStyle='rgba(0,100,200,0.6)';c.fillRect(6,5,bbW,bbH);
+    c.strokeStyle='#0af';c.lineWidth=1.5;c.strokeRect(6,5,bbW,bbH);
+    c.fillStyle='#0af';c.font=Math.max(8,bbH*0.35)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('◄ BACK',6+bbW/2,5+bbH/2);
+    _hangarBtns.push({x:6,y:5,w:bbW,h:bbH,action:'back'});
+
+    // Tabs
+    const tabY=44,tabH=28;
+    const tabs=['SHIPS','SHOP'];
+    const tabW=W/tabs.length;
+    for(let ti=0;ti<tabs.length;ti++){
+        const tx=ti*tabW;
+        c.fillStyle=ti===hangarTab?'rgba(0,80,150,0.7)':'rgba(0,0,30,0.6)';
+        c.fillRect(tx,tabY,tabW,tabH);
+        c.strokeStyle=ti===hangarTab?'#0af':'#335';c.lineWidth=1;
+        c.beginPath();c.moveTo(tx,tabY+tabH);c.lineTo(tx+tabW,tabY+tabH);c.stroke();
+        if(ti===hangarTab){c.fillStyle='#0af';c.fillRect(tx,tabY+tabH-2,tabW,2);}
+        c.fillStyle=ti===hangarTab?'#0ff':'#668';c.font=Math.max(7,tabH*0.35)+'px "Press Start 2P"';
+        c.textAlign='center';c.textBaseline='middle';c.fillText(tabs[ti],tx+tabW/2,tabY+tabH/2);
+        _hangarBtns.push({x:tx,y:tabY,w:tabW,h:tabH,action:'tab',idx:ti});
     }
-};
-document.getElementById('b-hangar-back').onclick=()=>{sfxSel();showMap();};
+
+    const contentY=tabY+tabH+4;
+    const contentH=H-contentY-50; // leave room for action bar
+
+    if(hangarTab===0) renderShipsTab(time,contentY,contentH,fs);
+    else renderShopTab(time,contentY,contentH,fs);
+
+    // Bottom action bar
+    const barY2=H-46,barH2=42;
+    c.fillStyle='rgba(0,0,20,0.9)';c.fillRect(0,barY2,W,barH2);
+    c.strokeStyle='rgba(100,150,255,0.3)';c.lineWidth=1;c.beginPath();c.moveTo(0,barY2);c.lineTo(W,barY2);c.stroke();
+
+    if(hangarTab===0){
+        const sh=SHIPS[hangarSel];const owned=isShipOwned(hangarSel);
+        let btnText,btnCol;
+        if(hangarSel===curShip){btnText='✓ EQUIPPED';btnCol='#0a0';}
+        else if(owned){btnText='▶ SELECT';btnCol='#0af';}
+        else if(canAffordShip(hangarSel)){btnText='BUY 🪙'+sh.cost;btnCol='#ff0';}
+        else{btnText='NEED 🪙'+sh.cost;btnCol='#a44';}
+        const abW=Math.min(200,W*0.5),abH=30,abX=W/2-abW/2,abY2=barY2+6;
+        c.fillStyle=btnCol==='#0a0'?'rgba(0,80,0,0.7)':btnCol==='#ff0'?'rgba(100,80,0,0.7)':btnCol==='#a44'?'rgba(60,20,20,0.5)':'rgba(0,60,120,0.7)';
+        c.fillRect(abX,abY2,abW,abH);c.strokeStyle=btnCol;c.lineWidth=1.5;c.strokeRect(abX,abY2,abW,abH);
+        c.fillStyle=btnCol;c.font=Math.max(7,abH*0.33)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText(btnText,W/2,abY2+abH/2);
+        if(hangarSel!==curShip&&(owned||canAffordShip(hangarSel)))
+            _hangarBtns.push({x:abX,y:abY2,w:abW,h:abH,action:'select'});
+    }
+
+    drP();drawScanlines();
+}
+
+function renderShipsTab(time,cy,ch,fs){
+    // Grid of ship cards on left, detail on right (or top/bottom on portrait)
+    const isWide=W>H*1.2;
+    const gridW=isWide?W*0.4:W;
+    const detailX=isWide?gridW:0;
+    const detailW=isWide?W-gridW:W;
+    const detailY=isWide?cy:cy+Math.min(ch*0.35,140);
+    const detailH=isWide?ch:ch-Math.min(ch*0.35,140);
+    const gridH=isWide?ch:Math.min(ch*0.35,140);
+
+    // Ship grid
+    const cols=isWide?2:3;
+    const cardW=Math.min(80,(gridW-20)/cols-8);
+    const cardH=cardW+20;
+    const startX=(isWide?0:W/2)-((cols*cardW+(cols-1)*8)/2);
+
+    for(let i=0;i<SHIPS.length;i++){
+        const sh=SHIPS[i];const owned=isShipOwned(i);const starOk=totalStars()>=sh.starsNeeded;
+        const col2=i%cols,row=Math.floor(i/cols);
+        const cx2=startX+col2*(cardW+8)+cardW/2;
+        const cy2=cy+8+row*(cardH+6)+cardH/2;
+        if(cy2+cardH/2>cy+gridH)continue;
+        const sel=i===hangarSel;
+
+        // Card bg
+        c.fillStyle=sel?'rgba(0,80,150,0.5)':'rgba(0,0,30,0.7)';
+        c.fillRect(cx2-cardW/2,cy2-cardH/2,cardW,cardH);
+        c.strokeStyle=i===curShip?'#0f0':sel?'#0af':owned?'#335':'#223';
+        c.lineWidth=sel?2:1;c.strokeRect(cx2-cardW/2,cy2-cardH/2,cardW,cardH);
+
+        // Mini ship
+        if(owned||starOk){
+            drawShipDetailed(c,sh,cx2,cy2-8,cardW*0.28,time);
+        }else{
+            c.globalAlpha=0.3;drawShipDetailed(c,sh,cx2,cy2-8,cardW*0.28,time);c.globalAlpha=1;
+            c.fillStyle='#556';c.font=Math.max(12,cardW*0.2)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('🔒',cx2,cy2-8);
+        }
+        // Name
+        c.fillStyle=owned?'#0af':starOk?'#ff0':'#556';
+        c.font=Math.max(5,cardW*0.09)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+        c.fillText(sh.name,cx2,cy2+cardH/2-3);
+
+        _hangarBtns.push({x:cx2-cardW/2,y:cy2-cardH/2,w:cardW,h:cardH,action:'ship',idx:i});
+    }
+
+    // Detail panel
+    const sh=SHIPS[hangarSel];const owned=isShipOwned(hangarSel);
+    const dpX=detailX+10,dpY=detailY+4,dpW=detailW-20,dpH=detailH-8;
+    c.fillStyle='rgba(0,0,30,0.8)';c.fillRect(dpX,dpY,dpW,dpH);
+    c.strokeStyle='#335';c.lineWidth=1;c.strokeRect(dpX,dpY,dpW,dpH);
+
+    // Large ship preview
+    const pvSize=Math.min(dpW*0.25,dpH*0.4,50);
+    const pvX=dpX+dpW/2,pvY=dpY+pvSize+15;
+    drawShipDetailed(c,sh,pvX,pvY,pvSize,time);
+
+    // Name + status
+    const nfs=Math.max(8,fs*0.6);
+    c.fillStyle=sh.color2;c.font=nfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText(sh.name,pvX,pvY+pvSize+8);
+    const statusY=pvY+pvSize+8+nfs+4;
+    c.fillStyle=hangarSel===curShip?'#0f0':owned?'#0af':'#ff0';
+    c.font=Math.max(5,nfs*0.5)+'px "Press Start 2P"';
+    c.fillText(hangarSel===curShip?'[EQUIPPED]':owned?'[OWNED]':('★'+sh.starsNeeded+' · 🪙'+sh.cost),pvX,statusY);
+
+    // Stat bars
+    const barStartY=statusY+nfs*0.5+8;
+    const barW2=dpW*0.6,barH2=8,barX2=dpX+dpW/2-barW2/2;
+    const sfs=Math.max(5,fs*0.3);
+    const stats=[
+        {label:'SPEED',val:sh.speed,max:10,col:'#0f0'},
+        {label:'TRAIL',val:sh.trailSpeed,max:9,col:'#0af'},
+        {label:'FIRE',val:sh.canShoot?(1/sh.fireRate)*0.35:0,max:3,col:'#ff0'},
+        {label:'DMG',val:sh.bulletDmg,max:2,col:'#f80'},
+    ];
+    for(let si=0;si<stats.length;si++){
+        const s=stats[si],sy=barStartY+si*(barH2+sfs+4);
+        c.fillStyle='#889';c.font=sfs+'px "Press Start 2P"';c.textAlign='right';c.textBaseline='top';
+        c.fillText(s.label,barX2-4,sy);
+        c.fillStyle='#112';c.fillRect(barX2,sy,barW2,barH2);
+        c.fillStyle=s.col;c.fillRect(barX2,sy,barW2*Math.min(1,s.val/s.max),barH2);
+        c.strokeStyle='#335';c.lineWidth=0.5;c.strokeRect(barX2,sy,barW2,barH2);
+    }
+
+    // Special ability text
+    const specY=barStartY+stats.length*(barH2+sfs+4)+4;
+    c.fillStyle='#c8f';c.font=sfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText(sh.specialDesc,dpX+dpW/2,specY);
+
+    // Weapon indicator
+    if(!sh.canShoot){
+        c.fillStyle='#f44';c.font=Math.max(6,sfs*1.2)+'px "Press Start 2P"';
+        c.fillText('⊘ NO WEAPONS',dpX+dpW/2,specY+sfs+6);
+    }
+}
+
+function renderShopTab(time,cy,ch,fs){
+    const sfs=Math.max(6,fs*0.35);
+    c.fillStyle='#889';c.font=Math.max(8,fs*0.5)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText('COMING SOON',W/2,cy+ch/2-10);
+    c.fillStyle='#556';c.font=sfs+'px "Press Start 2P"';
+    c.fillText('SKINS · TRAILS · UPGRADES',W/2,cy+ch/2+10);
+}
+
+// Hangar touch/click handler
+function handleHangarTap(mx,my){
+    for(const b of _hangarBtns){
+        if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){
+            if(b.action==='back'){sfxSel();showMap();return;}
+            if(b.action==='tab'){hangarTab=b.idx;hangarScroll=0;sfxSel();return;}
+            if(b.action==='ship'){
+                const owned=isShipOwned(b.idx);const starOk=totalStars()>=SHIPS[b.idx].starsNeeded;
+                if(owned||starOk){hangarSel=b.idx;sfxSel();}
+                else beep(150,0.15,'sawtooth',0.06);
+                return;
+            }
+            if(b.action==='select'){
+                const sh=SHIPS[hangarSel];const owned=isShipOwned(hangarSel);
+                if(hangarSel===curShip)return;
+                if(owned){
+                    curShip=hangarSel;writeS();sfxSel();
+                    beep(880,0.1,'sine',0.08);setTimeout(()=>beep(1100,0.15,'sine',0.08),60);
+                    return;
+                }else if(canAffordShip(hangarSel)){
+                    save.coins-=sh.cost;
+                    if(!save.purchased.ships)save.purchased.ships=['viper'];
+                    save.purchased.ships.push(sh.id);
+                    curShip=hangarSel;writeS();sfxSel();
+                    beep(660,0.1,'sine',0.06);setTimeout(()=>beep(1100,0.2,'sine',0.1),100);
+                    return;
+                }else beep(150,0.15,'sawtooth',0.06);
+                return;
+            }
+        }
+    }
+}
+let _hangarTapHandled=false;
+cv.addEventListener('touchend',e=>{
+    if(state!=='hangar')return;
+    _hangarTapHandled=true;setTimeout(()=>_hangarTapHandled=false,400);
+    const t=e.changedTouches[0];if(!t)return;
+    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+    handleHangarTap((t.clientX-rect.left)*sx,(t.clientY-rect.top)*sy);
+},{passive:true});
+cv.addEventListener('click',e=>{
+    if(state!=='hangar')return;
+    if(_hangarTapHandled)return;
+    const rect=cv.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+    handleHangarTap((e.clientX-rect.left)*sx,(e.clientY-rect.top)*sy);
+});
 
 // ===== GAME LOOP =====
 let lt=0;
@@ -2345,7 +2510,7 @@ function loop(time){
     if(state==='dying'){deathT-=dt;if(deathT<=0){document.getElementById('d-info').textContent=`${lives} ♥ LEFT - ${getPct()}% CLAIMED`;showScr('s-die');state='dead_pause';}}
     if(claimAT>0)claimAT-=dt;if(shakeD>0)shakeD-=dt;
     upP(dt);upFT(dt);
-    if(state==='map')renderMap(time);else render(time);
+    if(state==='map')renderMap(time);else if(state==='hangar')renderHangar(time);else render(time);
     requestAnimationFrame(loop);
 }
 initG();requestAnimationFrame(loop);
