@@ -306,23 +306,114 @@ function drFT(){for(const f of FT){const a=Math.min(1,f.l/f.ml*2);c.globalAlpha=
 // ===== SOUND =====
 let actx;function ac(){if(!actx)actx=new(AudioContext||webkitAudioContext)();return actx;}
 function beep(f,d,t='square',v=0.06){try{const a=ac(),o=a.createOscillator(),g=a.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d);}catch(e){}}
-function sfxClaim(){beep(523,0.08);setTimeout(()=>beep(659,0.08),40);setTimeout(()=>beep(784,0.12),80);}
-function sfxDeath(){beep(200,0.2,'sawtooth',0.1);setTimeout(()=>beep(100,0.3,'sawtooth',0.08),80);}
+function sfxClaim(){if(!playSfx('sfx_claim')){beep(523,0.08);setTimeout(()=>beep(659,0.08),40);setTimeout(()=>beep(784,0.12),80);}}
+function sfxBigClaim(){if(!playSfx('sfx_bigclaim')){beep(523,0.1);setTimeout(()=>beep(659,0.1),50);setTimeout(()=>beep(784,0.1),100);setTimeout(()=>beep(1047,0.15),150);}}
+function sfxDeath(){if(!playSfx('sfx_death')){beep(200,0.2,'sawtooth',0.1);setTimeout(()=>beep(100,0.3,'sawtooth',0.08),80);}}
 function sfxMove(){beep(880,0.02,'square',0.012);}
 function sfxWarp(){for(let i=0;i<6;i++)setTimeout(()=>beep(400+i*80,0.1,'square',0.05),i*50);}
-function sfxSel(){beep(660,0.06);setTimeout(()=>beep(880,0.08),40);}
-function sfxPow(){beep(440,0.1,'sine',0.08);setTimeout(()=>beep(660,0.1,'sine',0.08),60);setTimeout(()=>beep(880,0.15,'sine',0.08),120);}
-function sfxShoot(){beep(1200,0.04,'square',0.03);setTimeout(()=>beep(800,0.03,'square',0.02),20);}
-function sfxHit(){beep(300,0.1,'sawtooth',0.06);setTimeout(()=>beep(500,0.08,'square',0.05),40);}
-function sfxCapture(){beep(600,0.15,'sine',0.08);setTimeout(()=>beep(800,0.15,'sine',0.08),80);setTimeout(()=>beep(1000,0.2,'sine',0.08),160);}
+function sfxSel(){if(!playSfx('sfx_select')){beep(660,0.06);setTimeout(()=>beep(880,0.08),40);}}
+function sfxPow(){if(!playSfx('sfx_powerup')){beep(440,0.1,'sine',0.08);setTimeout(()=>beep(660,0.1,'sine',0.08),60);setTimeout(()=>beep(880,0.15,'sine',0.08),120);}}
+function sfxShoot(){if(!playSfx('sfx_shoot')){beep(1200,0.04,'square',0.03);setTimeout(()=>beep(800,0.03,'square',0.02),20);}}
+function sfxHit(){if(!playSfx('sfx_hit')){beep(300,0.1,'sawtooth',0.06);setTimeout(()=>beep(500,0.08,'square',0.05),40);}}
+function sfxCapture(){if(!playSfx('sfx_capture')){beep(600,0.15,'sine',0.08);setTimeout(()=>beep(800,0.15,'sine',0.08),80);setTimeout(()=>beep(1000,0.2,'sine',0.08),160);}}
 
-// ===== MUSIC ENGINE =====
-let musicOn=true,musicGain=null,musicNodes=[],musicBPM=0,musicBeat=0,musicTime=0;
-let musicScene='none'; // none, menu, gameplay, boss
-let musicIntensity=0; // 0=safe, 1=cutting (lerps)
-let musicTargetIntensity=0;
+// ===== AUDIO MANAGER =====
+// Supports real audio files (MP3) with fallback to procedural synth
+let musicOn=true,musicScene='none',musicIntensity=0,musicTargetIntensity=0;
+let currentTrack=null; // HTMLAudioElement for file-based music
+let synthActive=false; // true if using synth fallback
+let musicGain=null,musicNodes=[];
 
-// Galaxy music configs: scale, tempo, mood
+// Audio file manifest — map scene names to files
+const AUDIO_FILES={
+    // Music tracks (loop)
+    theme:'audio/theme.mp3',
+    menu:'audio/menu.mp3',
+    galaxy1:'audio/galaxy1.mp3',
+    galaxy2:'audio/galaxy2.mp3',
+    galaxy3:'audio/galaxy3.mp3',
+    boss:'audio/boss.mp3',
+    pause:'audio/pause.mp3',
+    // One-shots (no loop)
+    victory:'audio/victory.mp3',
+    gameover:'audio/gameover.mp3',
+    // SFX
+    sfx_claim:'audio/sfx_claim.mp3',
+    sfx_bigclaim:'audio/sfx_bigclaim.mp3',
+    sfx_death:'audio/sfx_death.mp3',
+    sfx_shoot:'audio/sfx_shoot.mp3',
+    sfx_hit:'audio/sfx_hit.mp3',
+    sfx_capture:'audio/sfx_capture.mp3',
+    sfx_powerup:'audio/sfx_powerup.mp3',
+    sfx_shield:'audio/sfx_shield.mp3',
+    sfx_phase:'audio/sfx_phase.mp3',
+    sfx_split:'audio/sfx_split.mp3',
+    sfx_respawn:'audio/sfx_respawn.mp3',
+    sfx_select:'audio/sfx_select.mp3',
+    sfx_start:'audio/sfx_start.mp3',
+    sfx_star:'audio/sfx_star.mp3',
+};
+
+// Preloaded audio cache
+const audioCache={};
+const audioAvailable={}; // which files exist
+let audioPreloaded=false;
+
+function preloadAudio(){
+    if(audioPreloaded)return;audioPreloaded=true;
+    for(const[key,src]of Object.entries(AUDIO_FILES)){
+        const audio=new Audio();
+        audio.preload='auto';
+        audio.src=src;
+        audio.addEventListener('canplaythrough',()=>{audioAvailable[key]=true;},{once:true});
+        audio.addEventListener('error',()=>{audioAvailable[key]=false;});
+        audioCache[key]=audio;
+    }
+}
+
+// Determine which music key to use for current scene
+function getMusicKey(scene){
+    if(scene==='menu')return audioAvailable.menu?'menu':(audioAvailable.theme?'theme':null);
+    if(scene==='title')return audioAvailable.theme?'theme':(audioAvailable.menu?'menu':null);
+    if(scene==='boss')return audioAvailable.boss?'boss':null;
+    if(scene==='gameplay'){
+        if(curLv<4)return audioAvailable.galaxy1?'galaxy1':null;
+        if(curLv<8)return audioAvailable.galaxy2?'galaxy2':null;
+        return audioAvailable.galaxy3?'galaxy3':null;
+    }
+    if(scene==='pause')return audioAvailable.pause?'pause':null;
+    if(scene==='victory')return audioAvailable.victory?'victory':null;
+    if(scene==='gameover')return audioAvailable.gameover?'gameover':null;
+    return null;
+}
+
+// Play a one-shot SFX file (if available, else use synth fallback)
+function playSfx(key){
+    if(!musicOn)return false;
+    if(audioAvailable[key]&&audioCache[key]){
+        const sfx=audioCache[key].cloneNode();
+        sfx.volume=0.5;sfx.play().catch(()=>{});
+        return true;
+    }
+    return false; // caller should use synth fallback
+}
+
+// === FILE-BASED MUSIC ===
+function stopFileMusic(){
+    if(currentTrack){currentTrack.pause();currentTrack.currentTime=0;currentTrack=null;}
+}
+
+function playFileMusic(key,loop=true){
+    stopFileMusic();
+    if(!audioCache[key])return;
+    currentTrack=audioCache[key];
+    currentTrack.loop=loop;
+    currentTrack.volume=0.4;
+    currentTrack.currentTime=0;
+    currentTrack.play().catch(()=>{});
+}
+
+// === SYNTH FALLBACK ===
 const MUSIC_CONFIGS={
   menu:{scale:[0,3,5,7,10],root:48,bpm:75,pad:'sine',bass:'triangle',arp:'sine',padVol:0.04,bassVol:0.03,arpVol:0.02},
   inner:{scale:[0,2,4,7,9],root:48,bpm:110,pad:'sine',bass:'triangle',arp:'square',padVol:0.035,bassVol:0.04,arpVol:0.025},
@@ -330,128 +421,100 @@ const MUSIC_CONFIGS={
   outer:{scale:[0,2,3,6,7,9,10],root:43,bpm:138,pad:'sawtooth',bass:'square',arp:'sawtooth',padVol:0.03,bassVol:0.05,arpVol:0.035},
   boss:{scale:[0,1,3,5,6,8,10],root:41,bpm:150,pad:'sawtooth',bass:'square',arp:'sawtooth',padVol:0.035,bassVol:0.055,arpVol:0.04},
 };
-
 function midiToFreq(n){return 440*Math.pow(2,(n-69)/12);}
-function scaleNote(cfg,degree){
-    const oct=Math.floor(degree/cfg.scale.length);
-    const idx=((degree%cfg.scale.length)+cfg.scale.length)%cfg.scale.length;
-    return cfg.root+oct*12+cfg.scale[idx];
-}
+function scaleNote(cfg,degree){const oct=Math.floor(degree/cfg.scale.length);const idx=((degree%cfg.scale.length)+cfg.scale.length)%cfg.scale.length;return cfg.root+oct*12+cfg.scale[idx];}
 
-function stopMusic(){
+function stopSynth(){
+    synthActive=false;
     if(musicNodes._arpTimer)clearTimeout(musicNodes._arpTimer);
     for(const n of musicNodes){try{n.stop?n.stop():n.disconnect();}catch(e){}}
-    musicNodes=[];musicScene='none';
+    musicNodes=[];
 }
+
+function startSynth(scene){
+    const a=ac();stopSynth();synthActive=true;
+    const cfg=scene==='menu'?MUSIC_CONFIGS.menu:scene==='boss'?MUSIC_CONFIGS.boss
+        :scene==='gameplay'?(curLv<4?MUSIC_CONFIGS.inner:curLv<8?MUSIC_CONFIGS.deep:MUSIC_CONFIGS.outer)
+        :MUSIC_CONFIGS.menu;
+    if(!musicGain){musicGain=a.createGain();musicGain.connect(a.destination);}
+    musicGain.gain.setValueAtTime(0.6,a.currentTime);
+    // Pad
+    const padGain=a.createGain();padGain.gain.setValueAtTime(cfg.padVol,a.currentTime);padGain.connect(musicGain);
+    const padFilter=a.createBiquadFilter();padFilter.type='lowpass';padFilter.frequency.setValueAtTime(800,a.currentTime);padFilter.connect(padGain);
+    musicNodes.push(padGain,padFilter);
+    for(const cn of[0,2,4]){
+        const osc=a.createOscillator();osc.type=cfg.pad;osc.frequency.setValueAtTime(midiToFreq(scaleNote(cfg,cn)),a.currentTime);
+        const lfo=a.createOscillator();lfo.frequency.setValueAtTime(0.3+cn*0.1,a.currentTime);
+        const lfoG=a.createGain();lfoG.gain.setValueAtTime(3,a.currentTime);
+        lfo.connect(lfoG);lfoG.connect(osc.detune);lfo.start();osc.connect(padFilter);osc.start();
+        musicNodes.push(osc,lfo,lfoG);
+    }
+    // Bass
+    const bassGain=a.createGain();bassGain.gain.setValueAtTime(0,a.currentTime);bassGain.connect(musicGain);
+    const bassOsc=a.createOscillator();bassOsc.type=cfg.bass;bassOsc.frequency.setValueAtTime(midiToFreq(cfg.root-12),a.currentTime);
+    bassOsc.connect(bassGain);bassOsc.start();musicNodes.push(bassOsc,bassGain);
+    const bassLFO=a.createOscillator();bassLFO.frequency.setValueAtTime(cfg.bpm/60,a.currentTime);
+    const bassLFOG=a.createGain();bassLFOG.gain.setValueAtTime(cfg.bassVol,a.currentTime);
+    bassLFO.connect(bassLFOG);bassLFOG.connect(bassGain.gain);bassLFO.start();musicNodes.push(bassLFO,bassLFOG);
+    // Arp
+    const arpGain=a.createGain();arpGain.gain.setValueAtTime(cfg.arpVol,a.currentTime);arpGain.connect(musicGain);
+    const arpFilter=a.createBiquadFilter();arpFilter.type='lowpass';arpFilter.frequency.setValueAtTime(1200,a.currentTime);arpFilter.Q.setValueAtTime(4,a.currentTime);
+    arpFilter.connect(arpGain);musicNodes.push(arpGain,arpFilter);
+    musicNodes._padFilter=padFilter;musicNodes._arpFilter=arpFilter;musicNodes._cfg=cfg;
+    // Schedule arp
+    const beatLen=60/cfg.bpm;const patterns=[[0,2,4,2],[0,4,2,5,0,3,5,3]];let step=0;
+    function schedNext(){if(!synthActive)return;const now=a.currentTime;
+        const pat=musicIntensity>0.5?patterns[1]:patterns[0];
+        const note=scaleNote(cfg,pat[step%pat.length]+Math.floor(step/pat.length)%2*7);
+        const osc=a.createOscillator();osc.type=cfg.arp;osc.frequency.setValueAtTime(midiToFreq(note+12),now);
+        const env=a.createGain();env.gain.setValueAtTime((cfg.arpVol)*(0.6+musicIntensity*0.4),now);
+        env.gain.exponentialRampToValueAtTime(0.001,now+beatLen*0.9);
+        osc.connect(env);env.connect(arpFilter);osc.start(now);osc.stop(now+beatLen);step++;
+        musicNodes._arpTimer=setTimeout(schedNext,beatLen*1000*0.98);}
+    schedNext();
+}
+
+// === UNIFIED CONTROLS ===
+function stopMusic(){stopFileMusic();stopSynth();musicScene='none';}
 
 function startMusic(scene){
     if(!musicOn)return;
-    const a=ac();
+    preloadAudio();
     stopMusic();
     musicScene=scene;
-    const cfg=scene==='menu'?MUSIC_CONFIGS.menu
-        :scene==='boss'?MUSIC_CONFIGS.boss
-        :scene==='gameplay'?(curLv<4?MUSIC_CONFIGS.inner:curLv<8?MUSIC_CONFIGS.deep:MUSIC_CONFIGS.outer)
-        :MUSIC_CONFIGS.menu;
-    musicBPM=cfg.bpm;musicBeat=0;musicTime=a.currentTime;
-
-    // Master gain
-    if(!musicGain){musicGain=a.createGain();musicGain.connect(a.destination);}
-    musicGain.gain.setValueAtTime(0.6,a.currentTime);
-
-    // === PAD (sustained chord) ===
-    const padGain=a.createGain();padGain.gain.setValueAtTime(cfg.padVol,a.currentTime);padGain.connect(musicGain);
-    // Pad filter for warmth
-    const padFilter=a.createBiquadFilter();padFilter.type='lowpass';padFilter.frequency.setValueAtTime(800,a.currentTime);padFilter.connect(padGain);
-    musicNodes.push(padGain,padFilter);
-
-    const chordNotes=[0,2,4]; // root, 3rd, 5th in scale
-    for(const cn of chordNotes){
-        const osc=a.createOscillator();osc.type=cfg.pad;
-        osc.frequency.setValueAtTime(midiToFreq(scaleNote(cfg,cn)),a.currentTime);
-        // Slow detune for richness
-        const lfo=a.createOscillator();lfo.frequency.setValueAtTime(0.3+cn*0.1,a.currentTime);
-        const lfoG=a.createGain();lfoG.gain.setValueAtTime(3,a.currentTime);
-        lfo.connect(lfoG);lfoG.connect(osc.detune);lfo.start();
-        osc.connect(padFilter);osc.start();
-        musicNodes.push(osc,lfo,lfoG);
+    const key=getMusicKey(scene);
+    if(key){
+        // Use real audio file
+        const isOneShot=(scene==='victory'||scene==='gameover');
+        playFileMusic(key,!isOneShot);
+    }else{
+        // Fall back to synth
+        if(scene==='victory'||scene==='gameover')return; // no synth for these
+        startSynth(scene);
     }
-
-    // === BASS (pulsing root note) ===
-    const bassGain=a.createGain();bassGain.gain.setValueAtTime(0,a.currentTime);bassGain.connect(musicGain);
-    const bassOsc=a.createOscillator();bassOsc.type=cfg.bass;
-    bassOsc.frequency.setValueAtTime(midiToFreq(cfg.root-12),a.currentTime);
-    bassOsc.connect(bassGain);bassOsc.start();
-    musicNodes.push(bassOsc,bassGain);
-
-    // Bass pulse via LFO on gain
-    const bassLFO=a.createOscillator();bassLFO.frequency.setValueAtTime(cfg.bpm/60,a.currentTime);
-    const bassLFOG=a.createGain();bassLFOG.gain.setValueAtTime(cfg.bassVol,a.currentTime);
-    bassLFO.connect(bassLFOG);bassLFOG.connect(bassGain.gain);bassLFO.start();
-    musicNodes.push(bassLFO,bassLFOG);
-
-    // === ARP (melodic pattern - scheduled per beat) ===
-    const arpGain=a.createGain();arpGain.gain.setValueAtTime(cfg.arpVol,a.currentTime);arpGain.connect(musicGain);
-    // Arp filter that opens with intensity
-    const arpFilter=a.createBiquadFilter();arpFilter.type='lowpass';
-    arpFilter.frequency.setValueAtTime(1200,a.currentTime);
-    arpFilter.Q.setValueAtTime(4,a.currentTime);
-    arpFilter.connect(arpGain);
-    musicNodes.push(arpGain,arpFilter);
-
-    // Store references for dynamic control
-    musicNodes._padFilter=padFilter;
-    musicNodes._arpFilter=arpFilter;
-    musicNodes._arpGain=arpGain;
-    musicNodes._bassGain=bassGain;
-    musicNodes._cfg=cfg;
-
-    // Schedule arp notes
-    scheduleArp(a,cfg,arpFilter,arpGain);
-}
-
-function scheduleArp(a,cfg,filter,gain){
-    const beatLen=60/cfg.bpm;
-    const patterns=[
-        [0,2,4,2], // safe pattern
-        [0,4,2,5,0,3,5,3], // intense pattern
-    ];
-    let step=0;
-    function schedNext(){
-        if(musicScene==='none')return;
-        const now=a.currentTime;
-        const pat=musicIntensity>0.5?patterns[1]:patterns[0];
-        const note=scaleNote(cfg,pat[step%pat.length]+Math.floor(step/pat.length)%2*7);
-        const freq=midiToFreq(note+12); // one octave up
-        const osc=a.createOscillator();osc.type=cfg.arp;
-        osc.frequency.setValueAtTime(freq,now);
-        const env=a.createGain();
-        const vol=(musicNodes._cfg?.arpVol||0.025)*(0.6+musicIntensity*0.4);
-        env.gain.setValueAtTime(vol,now);
-        env.gain.exponentialRampToValueAtTime(0.001,now+beatLen*0.9);
-        osc.connect(env);env.connect(filter);
-        osc.start(now);osc.stop(now+beatLen);
-        step++;
-        musicNodes._arpTimer=setTimeout(schedNext,beatLen*1000*0.98);
-    }
-    schedNext();
 }
 
 function updateMusic(dt){
     if(!musicOn||musicScene==='none')return;
-    // Lerp intensity
     musicIntensity+=(musicTargetIntensity-musicIntensity)*Math.min(1,dt*3);
-    // Update filters based on intensity
-    try{
-        const a=ac();const now=a.currentTime;
-        if(musicNodes._padFilter)
-            musicNodes._padFilter.frequency.setTargetAtTime(600+musicIntensity*1400,now,0.1);
-        if(musicNodes._arpFilter)
-            musicNodes._arpFilter.frequency.setTargetAtTime(800+musicIntensity*3000,now,0.1);
-    }catch(e){}
+    // Synth dynamic filter
+    if(synthActive){try{const a=ac(),now=a.currentTime;
+        if(musicNodes._padFilter)musicNodes._padFilter.frequency.setTargetAtTime(600+musicIntensity*1400,now,0.1);
+        if(musicNodes._arpFilter)musicNodes._arpFilter.frequency.setTargetAtTime(800+musicIntensity*3000,now,0.1);
+    }catch(e){}}
+    // File-based: adjust volume with intensity
+    if(currentTrack){currentTrack.volume=0.3+musicIntensity*0.2;}
 }
 
 function setMusicIntensity(cutting){musicTargetIntensity=cutting?1:0;}
+
+function playOneShot(scene){
+    // For victory/gameover stings
+    const key=getMusicKey(scene);
+    if(key&&audioAvailable[key]){
+        const audio=audioCache[key].cloneNode();audio.volume=0.5;audio.play().catch(()=>{});
+    }
+}
 
 function toggleMusic(){
     musicOn=!musicOn;
@@ -462,7 +525,6 @@ function toggleMusic(){
     try{localStorage.setItem('zd_music',musicOn?'1':'0');}catch(e){}
 }
 try{const m=localStorage.getItem('zd_music');if(m==='0'){musicOn=false;}}catch(e){}
-// Set initial button text
 setTimeout(()=>{try{document.getElementById('p-mus').textContent='♪ MUSIC: '+(musicOn?'ON':'OFF');}catch(e){}},100);
 
 // ===== GAME STATE =====
@@ -655,7 +717,8 @@ function claimT(){
     else if(cutPct>=20){mult=4;rank='AMAZING!';rankCol='#ff0';}
     else if(cutPct>=12){mult=3;rank='GREAT!';rankCol='#0ff';}
     else if(cutPct>=5){mult=2;rank='GOOD!';rankCol='#0fa';}
-    const base=tLen*10+cNow*5;const pts=base*mult;score+=pts;sfxClaim();
+    const base=tLen*10+cNow*5;const pts=base*mult;score+=pts;
+    if(cutPct>=12)sfxBigClaim();else sfxClaim();
     if(mult>=3)for(let i=0;i<3;i++)setTimeout(()=>beep(600+i*150,0.1,'square',0.06),i*60);
     if(cNow>0){const px=player.x*CELL+CELL/2,py=player.y*CELL-10;
     if(rank)addFT(px,py,rank,rankCol,mult>=4?14:mult>=3?12:10);
@@ -718,7 +781,7 @@ function killP(){
     if(shieldTimer>0){shieldTimer=0;sp(player.x*CELL+CELL/2,player.y*CELL+CELL/2,'#ff0',20,50,0.3);return;}
     for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;lives--;
     sfxDeath();shakeA=8;shakeD=0.3;sp(player.x*CELL+CELL/2,player.y*CELL+CELL/2,'#f42',30,80,0.5);
-    if(lives<=0){state='dead';document.getElementById('o-sc').textContent='SCORE: '+score;document.getElementById('o-info').textContent=LEVELS[curLv].name+' — CUTS: '+cutsCt;showScr('s-over');}
+    if(lives<=0){state='dead';playOneShot('gameover');document.getElementById('o-sc').textContent='SCORE: '+score;document.getElementById('o-info').textContent=LEVELS[curLv].name+' — CUTS: '+cutsCt;showScr('s-over');}
     else{state='dying';deathT=0.5;}
 }
 function getPct(){return(claimedC/totalC*100)|0;}
@@ -735,7 +798,7 @@ function checkWin(){
     if(!save.stars[curLv]||save.stars[curLv]<st)save.stars[curLv]=st;
     if(!save.scores[curLv]||save.scores[curLv]<score)save.scores[curLv]=score;
     if(curLv+1>=save.unlocked)save.unlocked=Math.min(curLv+2,LEVELS.length);
-    if(score>save.hi)save.hi=score;writeS();sfxWarp();
+    if(score>save.hi)save.hi=score;writeS();sfxWarp();playOneShot('victory');
     state='won';
     if(curLv>=LEVELS.length-1){document.getElementById('c-sc').textContent='SCORE: '+score;showScr('s-done');}
     else{
