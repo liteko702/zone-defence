@@ -232,12 +232,12 @@ for(let ui=0;ui<UNIVERSE_CONSTELLATIONS.length;ui++){
             const localProgress=si/(starCount-1||1); // 0-1 within constellation
             const uniProgress=(ui+localProgress*0.3)/3;
             
-            // Enemy count scales: start with 1, end with 5+
-            const baseEnemies=Math.floor(1+globalProgress*4+localProgress*1.5);
-            const enemyCount=Math.min(6,Math.max(1,baseEnemies));
+            // Enemy count scales: start with 2, ramp faster
+            const baseEnemies=Math.floor(2+globalProgress*4+localProgress*2);
+            const enemyCount=Math.min(7,Math.max(2,baseEnemies));
             
-            // Speed scales
-            const baseSpeed=2.5+globalProgress*3+localProgress*0.5;
+            // Speed scales — faster from the start
+            const baseSpeed=3.5+globalProgress*3+localProgress*0.8;
             
             // Generate enemy list from pool
             const pool=ENEMY_POOLS[ui];
@@ -1357,7 +1357,7 @@ function _wing(s,pts,col){
 function drawShip(px,py,rot,cutting,time,shipIdx){
     const sh=SHIPS[shipIdx!==undefined?shipIdx:curShip];
     c.save();c.translate(px,py);c.rotate(rot-Math.PI/2);
-    const s=Math.max(CELL*1.8,14);const fl=0.5+0.5*Math.sin(time*0.015);
+    const s=Math.max(CELL*1.2,10);const fl=0.5+0.5*Math.sin(time*0.015);
     const c1=sh.color1,c2=sh.color2;
     // Ship glow outline
     c.shadowColor=cutting?'rgba(0,255,200,0.8)':c2;c.shadowBlur=s*0.12;c.shadowOffsetX=0;c.shadowOffsetY=0;
@@ -2749,9 +2749,9 @@ function renderHangar(time){
     // Title bar
     c.fillStyle='rgba(0,0,20,0.9)';c.fillRect(0,0,W,40);
     c.strokeStyle='rgba(100,150,255,0.3)';c.lineWidth=1;c.beginPath();c.moveTo(0,40);c.lineTo(W,40);c.stroke();
-    c.fillStyle='#0ff';c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+    c.fillStyle='#0ff';c.font=Math.max(11,fs)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
     c.fillText('⚙ HANGAR',W/2,20);
-    c.fillStyle='#ff0';c.font=(fs*0.4)+'px "Press Start 2P"';c.textAlign='right';
+    c.fillStyle='#ff0';c.font=Math.max(8,fs*0.55)+'px "Press Start 2P"';c.textAlign='right';
     c.fillText('🪙 '+(save.coins||0)+'  ★ '+ts,W-12,20);
 
     // Back button (top-left, clear of settings cog)
@@ -2773,7 +2773,7 @@ function renderHangar(time){
         c.strokeStyle=ti===hangarTab?'#0af':'#335';c.lineWidth=1;
         c.beginPath();c.moveTo(tx,tabY+tabH);c.lineTo(tx+tabW,tabY+tabH);c.stroke();
         if(ti===hangarTab){c.fillStyle='#0af';c.fillRect(tx,tabY+tabH-2,tabW,2);}
-        c.fillStyle=ti===hangarTab?'#0ff':'#668';c.font=Math.max(7,tabH*0.35)+'px "Press Start 2P"';
+        c.fillStyle=ti===hangarTab?'#0ff':'#668';c.font=Math.max(9,tabH*0.38)+'px "Press Start 2P"';
         c.textAlign='center';c.textBaseline='middle';c.fillText(tabs[ti],tx+tabW/2,tabY+tabH/2);
         _hangarBtns.push({x:tx,y:tabY,w:tabW,h:tabH,action:'tab',idx:ti});
     }
@@ -2850,17 +2850,17 @@ function renderShipsTab(time,cy,ch,fs){
         }
         // Name
         c.fillStyle=i===curShip?'#0f0':owned?'#0af':starOk?'#ff0':'#556';
-        c.font=Math.max(6,Math.min(9,cardW*0.12))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+        c.font=Math.max(8,Math.min(10,cardW*0.13))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
         c.fillText(sh.name,cx2,cyCard+cardH2-4);
 
         // Cost tag for unowned
         if(!owned){
             c.fillStyle=starOk?'#ff0':'#556';
-            c.font=Math.max(5,cardW*0.08)+'px "Press Start 2P"';c.textBaseline='top';
+            c.font=Math.max(7,cardW*0.09)+'px "Press Start 2P"';c.textBaseline='top';
             c.fillText(sh.cost>0?'🪙'+sh.cost:'FREE',cx2,cyCard+3);
         }
         if(i===curShip){
-            c.fillStyle='#0f0';c.font=Math.max(5,cardW*0.08)+'px "Press Start 2P"';c.textBaseline='top';
+            c.fillStyle='#0f0';c.font=Math.max(7,cardW*0.09)+'px "Press Start 2P"';c.textBaseline='top';
             c.fillText('✓ EQUIPPED',cx2,cyCard+3);
         }
 
@@ -2883,7 +2883,7 @@ function renderShipsTab(time,cy,ch,fs){
     drawShipDetailed(c,sh,pvX,pvY,pvSize,time);
 
     // Name under preview
-    const nfs=Math.max(7,fs*0.55);
+    const nfs=Math.max(9,fs*0.6);
     c.fillStyle=sh.color2;c.font=nfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
     c.fillText(sh.name,pvX,pvY+pvSize+6);
     c.fillStyle=hangarSel===curShip?'#0f0':owned?'#0af':'#ff0';
@@ -2891,8 +2891,8 @@ function renderShipsTab(time,cy,ch,fs){
     c.fillText(hangarSel===curShip?'[EQUIPPED]':owned?'[OWNED]':('★'+sh.starsNeeded+' · 🪙'+sh.cost),pvX,pvY+pvSize+6+nfs+2);
 
     // Stat bars on right side
-    const barX2=dpX+dpW*0.42,barW2=dpW*0.52,barH2=Math.max(6,dpH*0.06);
-    const sfs=Math.max(5,fs*0.3);
+    const barX2=dpX+dpW*0.42,barW2=dpW*0.52,barH2=Math.max(8,dpH*0.07);
+    const sfs=Math.max(7,fs*0.4);
     const barStartY=dpY+12;
     const stats=[
         {label:'SPEED',val:sh.speed,max:10,col:'#0f0'},
@@ -2912,10 +2912,10 @@ function renderShipsTab(time,cy,ch,fs){
 
     // Special ability + weapon info
     const specY=barStartY+stats.length*barGap+4;
-    c.fillStyle='#c8f';c.font=sfs+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
+    c.fillStyle='#c8f';c.font=Math.max(7,sfs)+'px "Press Start 2P"';c.textAlign='left';c.textBaseline='top';
     c.fillText(sh.specialDesc,barX2,specY);
     if(!sh.canShoot){
-        c.fillStyle='#f44';c.font=Math.max(6,sfs*1.1)+'px "Press Start 2P"';
+        c.fillStyle='#f44';c.font=Math.max(7,sfs*1.1)+'px "Press Start 2P"';
         c.fillText('⊘ NO WEAPONS',barX2,specY+sfs+4);
     }
 }
@@ -3161,7 +3161,7 @@ document.getElementById('b-sandbox').onclick=()=>{sfxSel();startMusic('menu');st
 let lt=0;
 function loop(time){
     const dt=Math.min((time-lt)/1000,0.05);lt=time;
-    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);updateRockets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<2&&Math.random()<0.001)spawnPow();
+    if(state==='playing'){moveP(dt);moveE(dt);updateBullets(dt);updateRockets(dt);lerpPlayer(dt);updateHUD();setMusicIntensity(player.cutting);updateMusic(dt);if(shieldTimer>0)shieldTimer-=dt;if(playerSpeed>SHIPS[curShip].speed){playerSpeed-=dt*0.8;if(playerSpeed<=SHIPS[curShip].speed){playerSpeed=SHIPS[curShip].speed;trailSpeed=SHIPS[curShip].trailSpeed;}}if(powerups.length<3&&Math.random()<0.003)spawnPow();
     // Process enemy respawn queue
     for(let i=enemyRespawnQueue.length-1;i>=0;i--){
         enemyRespawnQueue[i].timer-=dt;
