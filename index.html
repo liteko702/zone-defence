@@ -2845,22 +2845,22 @@ function renderShipsTab(time,cy,ch,fs){
             drawShipDetailed(c,sh,cx2,shipY,shipSize,time);
         }else{
             c.globalAlpha=0.25;drawShipDetailed(c,sh,cx2,shipY,shipSize,time);c.globalAlpha=1;
-            c.fillStyle='#667';c.font=Math.max(12,shipSize)+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+            c.fillStyle='#667';c.font=Math.max(12,Math.min(20,shipSize))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
             c.fillText('🔒',cx2,shipY);
         }
         // Name
         c.fillStyle=i===curShip?'#0f0':owned?'#0af':starOk?'#ff0':'#556';
-        c.font=Math.max(8,Math.min(10,cardW*0.13))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
+        c.font=Math.max(7,Math.min(10,cardW*0.08))+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='bottom';
         c.fillText(sh.name,cx2,cyCard+cardH2-4);
 
         // Cost tag for unowned
         if(!owned){
             c.fillStyle=starOk?'#ff0':'#556';
-            c.font=Math.max(7,cardW*0.09)+'px "Press Start 2P"';c.textBaseline='top';
+            c.font=Math.max(7,Math.min(11,cardW*0.09))+'px "Press Start 2P"';c.textBaseline='top';
             c.fillText(sh.cost>0?'🪙'+sh.cost:'FREE',cx2,cyCard+3);
         }
         if(i===curShip){
-            c.fillStyle='#0f0';c.font=Math.max(7,cardW*0.09)+'px "Press Start 2P"';c.textBaseline='top';
+            c.fillStyle='#0f0';c.font=Math.max(7,Math.min(11,cardW*0.09))+'px "Press Start 2P"';c.textBaseline='top';
             c.fillText('✓ EQUIPPED',cx2,cyCard+3);
         }
 
@@ -2883,11 +2883,11 @@ function renderShipsTab(time,cy,ch,fs){
     drawShipDetailed(c,sh,pvX,pvY,pvSize,time);
 
     // Name under preview
-    const nfs=Math.max(9,fs*0.6);
+    const nfs=Math.max(9,Math.min(13,fs*0.6));
     c.fillStyle=sh.color2;c.font=nfs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
     c.fillText(sh.name,pvX,pvY+pvSize+6);
     c.fillStyle=hangarSel===curShip?'#0f0':owned?'#0af':'#ff0';
-    c.font=Math.max(5,nfs*0.5)+'px "Press Start 2P"';
+    c.font=Math.max(5,Math.min(9,nfs*0.5))+'px "Press Start 2P"';
     c.fillText(hangarSel===curShip?'[EQUIPPED]':owned?'[OWNED]':('★'+sh.starsNeeded+' · 🪙'+sh.cost),pvX,pvY+pvSize+6+nfs+2);
 
     // Stat bars on right side
