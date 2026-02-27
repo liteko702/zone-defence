@@ -137,31 +137,31 @@ const DIR={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0],none:[0,0]};
 
 // ===== CONSTELLATIONS (star patterns for background) =====
 const CONSTELLATIONS={
-// Normalized 0-1 coordinates + connections
-orion:{stars:[[.5,.05],[.35,.2],[.65,.2],[.3,.4],[.5,.4],[.7,.4],[.25,.55],[.5,.55],[.75,.55],[.4,.75],[.6,.75],[.35,.95],[.65,.95]],
-  lines:[[0,1],[0,2],[1,3],[2,5],[3,4],[4,5],[3,6],[5,8],[6,7],[7,8],[6,9],[8,10],[9,11],[10,12]]},
-lyra:{stars:[[.5,.1],[.3,.3],[.7,.3],[.25,.55],[.75,.55],[.5,.8]],
-  lines:[[0,1],[0,2],[1,3],[2,4],[3,5],[4,5],[1,2]]},
+// Normalized 0-1 coordinates + connections (max 5 stars each)
+orion:{stars:[[.5,.05],[.35,.2],[.65,.2],[.5,.55],[.5,.95]],
+  lines:[[0,1],[0,2],[1,3],[2,3],[3,4]]},
+lyra:{stars:[[.5,.1],[.3,.3],[.7,.3],[.25,.6],[.75,.6]],
+  lines:[[0,1],[0,2],[1,2],[1,3],[2,4]]},
 cassiopeia:{stars:[[.15,.5],[.3,.2],[.5,.45],[.7,.15],[.85,.45]],
   lines:[[0,1],[1,2],[2,3],[3,4]]},
-cygnus:{stars:[[.5,.1],[.5,.35],[.2,.5],[.8,.5],[.5,.6],[.5,.9]],
-  lines:[[0,1],[1,4],[4,5],[2,1],[1,3]]},
-scorpius:{stars:[[.2,.1],[.25,.25],[.3,.4],[.35,.5],[.4,.6],[.5,.7],[.6,.75],[.7,.7],[.75,.6],[.8,.55],[.85,.65],[.9,.8]],
-  lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11]]},
-leo:{stars:[[.3,.2],[.2,.35],[.35,.4],[.5,.3],[.65,.2],[.7,.35],[.8,.5],[.6,.6],[.45,.7]],
-  lines:[[0,1],[1,2],[2,0],[0,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,2]]},
-gemini:{stars:[[.3,.1],[.6,.1],[.25,.3],[.55,.3],[.2,.5],[.5,.5],[.3,.7],[.6,.7],[.35,.9],[.55,.9]],
-  lines:[[0,2],[2,4],[4,6],[6,8],[1,3],[3,5],[5,7],[7,9],[4,5]]},
-draco:{stars:[[.7,.1],[.6,.2],[.45,.2],[.35,.3],[.3,.45],[.4,.55],[.55,.5],[.65,.55],[.6,.7],[.45,.75],[.35,.85],[.5,.9]],
-  lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11]]},
-perseus:{stars:[[.5,.05],[.45,.2],[.4,.35],[.35,.5],[.3,.65],[.55,.4],[.65,.5],[.7,.35]],
-  lines:[[0,1],[1,2],[2,3],[3,4],[2,5],[5,6],[5,7]]},
-aquila:{stars:[[.5,.1],[.35,.3],[.65,.3],[.5,.45],[.3,.6],[.7,.6],[.5,.8]],
-  lines:[[0,3],[1,3],[2,3],[3,6],[4,3],[5,3]]},
-sagittarius:{stars:[[.3,.2],[.4,.3],[.5,.2],[.6,.35],[.5,.5],[.35,.55],[.7,.5],[.55,.7],[.45,.75],[.65,.8]],
-  lines:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,1],[3,6],[4,7],[7,8],[7,9]]},
-phoenix:{stars:[[.5,.1],[.35,.3],[.65,.3],[.2,.5],[.8,.5],[.3,.7],[.7,.7],[.5,.85]],
-  lines:[[0,1],[0,2],[1,3],[2,4],[3,5],[4,6],[5,7],[6,7]]},
+cygnus:{stars:[[.5,.1],[.2,.45],[.8,.45],[.5,.5],[.5,.9]],
+  lines:[[0,3],[1,3],[2,3],[3,4]]},
+scorpius:{stars:[[.2,.1],[.3,.35],[.5,.6],[.7,.65],[.9,.8]],
+  lines:[[0,1],[1,2],[2,3],[3,4]]},
+leo:{stars:[[.3,.2],[.2,.4],[.5,.3],[.7,.35],[.55,.7]],
+  lines:[[0,1],[1,2],[0,2],[2,3],[3,4]]},
+gemini:{stars:[[.3,.1],[.6,.1],[.25,.45],[.55,.45],[.4,.8]],
+  lines:[[0,2],[1,3],[2,3],[2,4],[3,4]]},
+draco:{stars:[[.7,.1],[.45,.2],[.3,.45],[.55,.6],[.5,.9]],
+  lines:[[0,1],[1,2],[2,3],[3,4]]},
+perseus:{stars:[[.5,.05],[.45,.25],[.4,.45],[.3,.7],[.65,.45]],
+  lines:[[0,1],[1,2],[2,3],[2,4]]},
+aquila:{stars:[[.5,.1],[.35,.3],[.65,.3],[.5,.5],[.5,.8]],
+  lines:[[0,3],[1,3],[2,3],[3,4]]},
+sagittarius:{stars:[[.3,.2],[.5,.2],[.6,.4],[.5,.55],[.55,.8]],
+  lines:[[0,1],[1,2],[2,3],[3,4],[3,0]]},
+phoenix:{stars:[[.5,.1],[.3,.35],[.7,.35],[.3,.7],[.7,.7]],
+  lines:[[0,1],[0,2],[1,3],[2,4],[3,4]]},
 };
 
 // ===== STRUCTURE =====
@@ -230,17 +230,18 @@ for(let ui=0;ui<UNIVERSE_CONSTELLATIONS.length;ui++){
         const cstStart=_lvIdx;
         
         for(let si=0;si<starCount;si++){
-            // Progressive difficulty within constellation and universe
-            const globalProgress=_lvIdx/75; // 0-1 across entire game
+            // Progressive difficulty — steeper curves for 5-level constellations
+            const totalLevels=60; // ~12 constellations × 5 stars
+            const globalProgress=_lvIdx/totalLevels; // 0-1 across entire game
             const localProgress=si/(starCount-1||1); // 0-1 within constellation
             const uniProgress=(ui+localProgress*0.3)/3;
             
-            // Enemy count scales: start with 2, ramp faster
-            const baseEnemies=Math.floor(2+globalProgress*4+localProgress*2);
-            const enemyCount=Math.min(7,Math.max(2,baseEnemies));
+            // Enemy count scales: steeper ramp per level
+            const baseEnemies=Math.floor(2+globalProgress*5+localProgress*3);
+            const enemyCount=Math.min(8,Math.max(2,baseEnemies));
             
-            // Speed scales — faster from the start
-            const baseSpeed=3.5+globalProgress*3+localProgress*0.8;
+            // Speed scales — punchier jumps between levels
+            const baseSpeed=3.5+globalProgress*3.5+localProgress*1.2;
             
             // Generate enemy list from pool
             const pool=ENEMY_POOLS[ui];
