@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zone Defence — Development Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a1a;--card:#111128;--border:#1a1a3a;--accent:#0af;--accent2:#0f0;--text:#c8d0e0;--dim:#667;--warn:#f80;--danger:#f44;--gold:#ff0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.pixel{font-family:'Press Start 2P',monospace}
+
+/* Header */
+.hero{text-align:center;padding:60px 20px 40px;background:linear-gradient(180deg,#0a0a2a 0%,#0a0a1a 100%);position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,170,255,0.08),transparent 70%)}
+.hero h1{font-family:'Press Start 2P',monospace;font-size:clamp(18px,4vw,32px);color:#0ff;text-shadow:0 0 20px rgba(0,255,255,0.3);margin-bottom:12px;position:relative}
+.hero .sub{color:var(--dim);font-size:14px;margin-bottom:20px}
+.hero .links{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.hero .links a{color:var(--accent);text-decoration:none;border:1px solid var(--accent);padding:8px 16px;border-radius:6px;font-size:13px;transition:all 0.2s}
+.hero .links a:hover{background:rgba(0,170,255,0.15)}
+
+/* Nav */
+.nav{position:sticky;top:0;z-index:100;background:rgba(10,10,26,0.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;gap:16px;overflow-x:auto;font-size:13px}
+.nav a{color:var(--dim);text-decoration:none;white-space:nowrap;transition:color 0.2s}.nav a:hover{color:var(--accent)}
+
+/* Container */
+.container{max-width:960px;margin:0 auto;padding:0 20px}
+
+/* Sections */
+section{padding:40px 0;border-bottom:1px solid var(--border)}
+section:last-child{border:none}
+h2{font-family:'Press Start 2P',monospace;font-size:clamp(12px,2.5vw,16px);color:var(--accent);margin-bottom:20px;text-shadow:0 0 10px rgba(0,170,255,0.2)}
+h3{font-size:16px;font-weight:700;color:#fff;margin:20px 0 10px}
+h4{font-size:14px;color:var(--accent);margin:16px 0 8px}
+
+/* Cards */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:16px 0}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;transition:border-color 0.2s}
+.card:hover{border-color:var(--accent)}
+.card h4{margin-top:0;color:#fff}
+.card .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-right:4px}
+.tag.green{background:rgba(0,255,0,0.15);color:#0f0}
+.tag.blue{background:rgba(0,170,255,0.15);color:#0af}
+.tag.orange{background:rgba(255,136,0,0.15);color:#f80}
+.tag.red{background:rgba(255,68,68,0.15);color:#f44}
+.tag.purple{background:rgba(170,0,255,0.15);color:#c8f}
+.tag.gold{background:rgba(255,255,0,0.15);color:#ff0}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{text-align:left;padding:8px 12px;background:rgba(0,170,255,0.08);color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.04)}
+tr:hover td{background:rgba(0,170,255,0.03)}
+
+/* Stat bars */
+.stat-bar{display:flex;align-items:center;gap:8px;margin:4px 0}
+.stat-bar label{width:60px;font-size:11px;color:var(--dim);text-transform:uppercase}
+.stat-bar .bar{flex:1;height:8px;background:#1a1a2a;border-radius:4px;overflow:hidden}
+.stat-bar .bar .fill{height:100%;border-radius:4px;transition:width 0.3s}
+
+/* Enemy visual */
+.enemy-card{display:flex;gap:16px;align-items:flex-start;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin:12px 0}
+.enemy-card .icon{width:60px;height:60px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+.enemy-card .info{flex:1}
+.enemy-card .info h4{margin:0 0 4px;color:#fff}
+.enemy-card .info .behaviour{color:var(--dim);font-size:13px}
+.enemy-card .info .counter{color:var(--accent);font-size:12px;margin-top:4px}
+
+/* Sprint timeline */
+.sprint{position:relative;padding-left:32px;margin:16px 0}
+.sprint::before{content:'';position:absolute;left:10px;top:0;bottom:0;width:2px;background:var(--border)}
+.sprint-item{position:relative;margin-bottom:24px}
+.sprint-item::before{content:'';position:absolute;left:-26px;top:4px;width:12px;height:12px;border-radius:50%;border:2px solid var(--accent);background:var(--bg)}
+.sprint-item.active::before{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.sprint-item.done::before{background:var(--accent2);border-color:var(--accent2)}
+.sprint-item h4{margin:0 0 4px}
+.sprint-item p{color:var(--dim);font-size:13px;margin:0}
+.sprint-item ul{margin:8px 0 0 16px;font-size:13px;color:var(--text)}
+.sprint-item li{margin:4px 0}
+
+/* Prompt boxes */
+.prompt-box{background:#0a1520;border:1px solid #1a3050;border-radius:8px;padding:16px;margin:12px 0;position:relative}
+.prompt-box .label{font-size:11px;text-transform:uppercase;color:var(--accent);letter-spacing:1px;margin-bottom:8px}
+.prompt-box .prompt-text{font-family:monospace;font-size:13px;color:#e8f0ff;line-height:1.7;white-space:pre-wrap}
+.prompt-box .copy-btn{position:absolute;top:12px;right:12px;background:rgba(0,170,255,0.15);border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px}
+.prompt-box .copy-btn:hover{background:rgba(0,170,255,0.3)}
+.prompt-box .link{margin-top:8px;font-size:12px}
+.prompt-box .link a{color:var(--accent);text-decoration:none}
+
+/* Ship visual */
+.ship-card{text-align:center;padding:20px 16px}
+.ship-card .ship-icon{font-size:40px;margin-bottom:8px}
+.ship-card .ship-name{font-family:'Press Start 2P',monospace;font-size:11px;margin-bottom:8px}
+
+/* Galaxy visual */
+.galaxy-banner{background:linear-gradient(135deg,rgba(0,170,255,0.08),transparent);border:1px solid var(--border);border-radius:8px;padding:20px;margin:12px 0}
+.galaxy-banner h4{margin-top:0}
+.galaxy-banner .constellations{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.galaxy-banner .cst{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px 10px;font-size:12px}
+
+/* Checklist */
+.check{color:var(--accent2)}
+.cross{color:var(--danger)}
+
+/* Footer */
+footer{text-align:center;padding:40px 20px;color:var(--dim);font-size:12px}
+footer a{color:var(--accent);text-decoration:none}
+
+/* Live game embed */
+.game-embed{width:100%;aspect-ratio:16/9;border:2px solid var(--border);border-radius:8px;margin:16px 0}
+
+/* Responsive */
+@media(max-width:640px){
+  .card-grid{grid-template-columns:1fr}
+  .enemy-card{flex-direction:column}
+  .nav{font-size:12px;gap:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <h1 class="pixel">⬡ ZONE DEFENCE</h1>
+  <p class="sub">Qix-style territory capture game · Space themed · Retro arcade with modern polish</p>
+  <div class="links">
+    <a href="https://zone-defence.kbot.uk" target="_blank">🎮 Play Now</a>
+    <a href="https://github.com/liteko702/zone-defence" target="_blank">📦 GitHub</a>
+    <a href="https://github.com/liteko702/zone-defence/blob/master/DESIGN.md" target="_blank">📋 Design Doc</a>
+    <a href="https://github.com/liteko702/zone-defence/blob/master/GAME_BREAKDOWN.md" target="_blank">📊 Breakdown</a>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <a href="#game">🎮 Live Game</a>
+  <a href="#structure">🗺️ Structure</a>
+  <a href="#enemies">👾 Enemies</a>
+  <a href="#ships">🚀 Ships</a>
+  <a href="#roadmap">🚀 Roadmap</a>
+  <a href="#audio">🎵 Audio</a>
+  <a href="#art">🎨 Art</a>
+  <a href="#bugs">🐛 Bugs</a>
+  <a href="#log">📝 Log</a>
+</div>
+
+<div class="container">
+
+<!-- LIVE GAME -->
+<section id="game">
+  <h2>🎮 LIVE GAME</h2>
+  <p style="margin-bottom:12px">Play Zone Defence directly in the browser. Works on desktop and mobile.</p>
+  <iframe class="game-embed" src="https://zone-defence.kbot.uk" allowfullscreen></iframe>
+  <p style="font-size:12px;color:var(--dim);margin-top:8px">Tip: Click fullscreen (⛶) in-game for the best experience. Use arrow keys or d-pad on mobile.</p>
+</section>
+
+<!-- GAME STRUCTURE -->
+<section id="structure">
+  <h2>🗺️ GAME STRUCTURE</h2>
+  <p style="margin-bottom:16px">3 galaxies, 12 constellations, 109 levels total. <strong style="color:var(--warn)">Planned: reduce to ~63 levels (5 per constellation max).</strong></p>
+
+  <div class="galaxy-banner" style="border-color:rgba(0,170,255,0.3)">
+    <h4 style="color:#0af">🌌 GALAXY 0 — ANDROMEDA</h4>
+    <p style="font-size:13px;color:var(--dim)">Learn the basics. No weapons. 24 levels + boss.</p>
+    <p style="font-size:12px;margin-top:4px">Enemies: <span class="tag blue">Bounce</span> <span class="tag red">Chase</span></p>
+    <p style="font-size:12px">Boss: <strong>Andromeda Guardian</strong> (8 HP, speed 2.0)</p>
+    <div class="constellations">
+      <span class="cst" style="border-color:#a8f">✦ Cassiopeia (5)</span>
+      <span class="cst" style="border-color:#0fa">✦ Lyra (6)</span>
+      <span class="cst" style="border-color:#0ff">✦ Cygnus (6)</span>
+      <span class="cst" style="border-color:#4af">✦ Aquila (7)</span>
+    </div>
+  </div>
+
+  <div class="galaxy-banner" style="border-color:rgba(170,0,255,0.3)">
+    <h4 style="color:#a0f">🌌 GALAXY 1 — MILKY WAY</h4>
+    <p style="font-size:13px;color:var(--dim)">Weapons online! New enemy types. 35 levels + boss.</p>
+    <p style="font-size:12px;margin-top:4px">Enemies: <span class="tag blue">Bounce</span> <span class="tag red">Chase</span> <span class="tag green">Tracer</span> <span class="tag gold">Shield</span> <span class="tag purple">Split</span></p>
+    <p style="font-size:12px">Boss: <strong>Milky Way Wyrm</strong> (12 HP, speed 2.5)</p>
+    <div class="constellations">
+      <span class="cst" style="border-color:#f8a">✦ Perseus (8)</span>
+      <span class="cst" style="border-color:#fa0">✦ Phoenix (8)</span>
+      <span class="cst" style="border-color:#ff0">✦ Leo (9)</span>
+      <span class="cst" style="border-color:#8ff">✦ Gemini (10)</span>
+    </div>
+  </div>
+
+  <div class="galaxy-banner" style="border-color:rgba(255,136,0,0.3)">
+    <h4 style="color:#f80">🌌 GALAXY 2 — NEBULA PRIME</h4>
+    <p style="font-size:13px;color:var(--dim)">The final frontier. All enemy types. 47 levels + boss.</p>
+    <p style="font-size:12px;margin-top:4px">Enemies: <span class="tag blue">Bounce</span> <span class="tag red">Chase</span> <span class="tag green">Tracer</span> <span class="tag gold">Shield</span> <span class="tag purple">Split</span> <span class="tag purple">Phase</span> <span class="tag orange">Orbit</span></p>
+    <p style="font-size:12px">Boss: <strong>Nebula Lord</strong> (18 HP, speed 3.0)</p>
+    <div class="constellations">
+      <span class="cst" style="border-color:#f4a">✦ Sagittarius (10)</span>
+      <span class="cst" style="border-color:#f44">✦ Scorpius (12)</span>
+      <span class="cst" style="border-color:#8f0">✦ Draco (12)</span>
+      <span class="cst" style="border-color:#6cf">✦ Orion (13)</span>
+    </div>
+  </div>
+
+  <h3>Difficulty Scaling</h3>
+  <table>
+    <tr><th>Metric</th><th>Early Game</th><th>Mid Game</th><th>Late Game</th></tr>
+    <tr><td>Enemies per level</td><td>2</td><td>4-5</td><td>7 (max)</td></tr>
+    <tr><td>Enemy speed</td><td>3.5</td><td>5.0</td><td>6.5</td></tr>
+    <tr><td>Territory target</td><td>70%</td><td>~78%</td><td>90%</td></tr>
+    <tr><td>Lives</td><td>3</td><td>3</td><td>4-5</td></tr>
+    <tr><td>Coins per level</td><td>~50</td><td>~150</td><td>~250</td></tr>
+  </table>
+
+  <h3>Star Ratings</h3>
+  <table>
+    <tr><th>Stars</th><th>Requirement</th></tr>
+    <tr><td>⭐</td><td>Clear the target %</td></tr>
+    <tr><td>⭐⭐</td><td>Clear target + 5%</td></tr>
+    <tr><td>⭐⭐⭐</td><td>Clear target + 15%</td></tr>
+  </table>
+</section>
+
+<!-- ENEMIES -->
+<section id="enemies">
+  <h2>👾 ENEMIES</h2>
+  <p style="margin-bottom:16px">7 enemy types across 3 galaxies. <strong style="color:var(--warn)">Currently no introduction when new types appear — Sprint 2 will add briefing screens.</strong></p>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(0,120,200,0.2);border:1px solid #4af">🛸</div>
+    <div class="info">
+      <h4>BOUNCE <span class="tag blue">Patrol Drone</span></h4>
+      <div class="behaviour">Blue disc with scanning beam. Bounces off walls randomly — predictable but fills the space.</div>
+      <div class="counter">⚡ Counter: Watch their angle and cut around them. Easy to avoid individually.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 1 · Appears: Galaxy 0+</div>
+    </div>
+  </div>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(200,40,40,0.2);border:1px solid #f44">🔺</div>
+    <div class="info">
+      <h4>CHASE <span class="tag red">Hunter</span></h4>
+      <div class="behaviour">Red interceptor with forward-swept wings. Actively chases the player — relentless and aggressive.</div>
+      <div class="counter">⚡ Counter: Keep moving. Use speed boosts. Lure away then cut behind them.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 1 · Appears: Galaxy 0+</div>
+    </div>
+  </div>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(0,200,80,0.2);border:1px solid #0e4">🐍</div>
+    <div class="info">
+      <h4>TRACER <span class="tag green">Serpent Drone</span></h4>
+      <div class="behaviour">Green segmented worm with mandibles. Follows player's trail path — hunts along your cuts.</div>
+      <div class="counter">⚡ Counter: Keep cuts short. Don't retrace your path. Shoot from distance.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 1 · Appears: Galaxy 1+</div>
+    </div>
+  </div>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(200,150,0,0.2);border:1px solid #cc0">🛡️</div>
+    <div class="info">
+      <h4>SHIELD <span class="tag gold">Armor Tank</span></h4>
+      <div class="behaviour">Gold armoured gunship with shield energy field. Slow but takes 2 hits to destroy.</div>
+      <div class="counter">⚡ Counter: Use double-damage ships (Titan/Nova) or focus fire. Enclose in territory for instant kill.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 2 · Appears: Galaxy 1+</div>
+    </div>
+  </div>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(200,50,100,0.2);border:1px solid #f4a">🧬</div>
+    <div class="info">
+      <h4>SPLIT <span class="tag purple">Biomech Entity</span></h4>
+      <div class="behaviour">Pink blob with dashed division line and two nuclei. When killed, splits into 2 smaller bouncers.</div>
+      <div class="counter">⚡ Counter: Enclose them in territory (no split). Or clear space before killing to handle the spawns.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 1 (spawns 2) · Appears: Galaxy 1+</div>
+    </div>
+  </div>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(150,50,200,0.2);border:1px solid #c8f">💎</div>
+    <div class="info">
+      <h4>PHASE <span class="tag purple">Crystal Ship</span></h4>
+      <div class="behaviour">Purple translucent diamond with energy field. Phases in and out — completely invulnerable while phased (transparent).</div>
+      <div class="counter">⚡ Counter: Wait for them to become solid. Time your cuts for when they're phased out of your path.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 1 · Appears: Galaxy 2+</div>
+    </div>
+  </div>
+
+  <div class="enemy-card">
+    <div class="icon" style="background:rgba(200,120,0,0.2);border:1px solid #fa0">🔘</div>
+    <div class="info">
+      <h4>ORBIT <span class="tag orange">Ring Drone</span></h4>
+      <div class="behaviour">Orange ring with spinning energy arcs and pulsing core. Moves in circular orbit patterns — creates denial zones.</div>
+      <div class="counter">⚡ Counter: Learn their orbit radius. Cut between orbits. Their path is predictable if you watch the pattern.</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:4px">HP: 1 · Appears: Galaxy 2+</div>
+    </div>
+  </div>
+</section>
+
+<!-- SHIPS -->
+<section id="ships">
+  <h2>🚀 SHIPS</h2>
+  <p style="margin-bottom:16px">6 unlockable ships. Each has unique stats and playstyle.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="color:#66ccff;margin:0">VIPER</h4>
+        <span class="tag green">FREE</span>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:12px">Fast scout. No weapons. Pure speed + agility. Perfect for learning.</p>
+      <div class="stat-bar"><label>Speed</label><div class="bar"><div class="fill" style="width:90%;background:#0f0"></div></div></div>
+      <div class="stat-bar"><label>Trail</label><div class="bar"><div class="fill" style="width:70%;background:#0af"></div></div></div>
+      <div class="stat-bar"><label>Fire</label><div class="bar"><div class="fill" style="width:0%;background:#ff0"></div></div></div>
+      <div class="stat-bar"><label>DMG</label><div class="bar"><div class="fill" style="width:0%;background:#f80"></div></div></div>
+      <p style="font-size:11px;color:#f44;margin-top:8px">⊘ NO WEAPONS</p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="color:#ff6666;margin:0">STRIKER</h4>
+        <span class="tag gold">300🪙</span>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:12px">Armed fighter. Standard weapons. Slightly slower but can shoot enemies.</p>
+      <div class="stat-bar"><label>Speed</label><div class="bar"><div class="fill" style="width:70%;background:#0f0"></div></div></div>
+      <div class="stat-bar"><label>Trail</label><div class="bar"><div class="fill" style="width:60%;background:#0af"></div></div></div>
+      <div class="stat-bar"><label>Fire</label><div class="bar"><div class="fill" style="width:40%;background:#ff0"></div></div></div>
+      <div class="stat-bar"><label>DMG</label><div class="bar"><div class="fill" style="width:50%;background:#f80"></div></div></div>
+      <p style="font-size:11px;color:var(--accent);margin-top:8px">🔫 STANDARD WEAPONS</p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="color:#cc88ff;margin:0">PHANTOM</h4>
+        <span class="tag gold">800🪙 / 4★</span>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:12px">Stealth cutter. Fastest trail speed. Slow but armed — the territory master.</p>
+      <div class="stat-bar"><label>Speed</label><div class="bar"><div class="fill" style="width:80%;background:#0f0"></div></div></div>
+      <div class="stat-bar"><label>Trail</label><div class="bar"><div class="fill" style="width:100%;background:#0af"></div></div></div>
+      <div class="stat-bar"><label>Fire</label><div class="bar"><div class="fill" style="width:20%;background:#ff0"></div></div></div>
+      <div class="stat-bar"><label>DMG</label><div class="bar"><div class="fill" style="width:50%;background:#f80"></div></div></div>
+      <p style="font-size:11px;color:var(--accent);margin-top:8px">🔫 FAST TRAIL CUTTING</p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="color:#ffaa00;margin:0">TITAN</h4>
+        <span class="tag gold">2000🪙 / 10★</span>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:12px">Heavy tank. Double damage! Extra life but slow. The damage dealer.</p>
+      <div class="stat-bar"><label>Speed</label><div class="bar"><div class="fill" style="width:60%;background:#0f0"></div></div></div>
+      <div class="stat-bar"><label>Trail</label><div class="bar"><div class="fill" style="width:50%;background:#0af"></div></div></div>
+      <div class="stat-bar"><label>Fire</label><div class="bar"><div class="fill" style="width:40%;background:#ff0"></div></div></div>
+      <div class="stat-bar"><label>DMG</label><div class="bar"><div class="fill" style="width:100%;background:#f80"></div></div></div>
+      <p style="font-size:11px;color:var(--accent);margin-top:8px">🔫 +1 LIFE · DOUBLE DMG</p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="color:#00ffff;margin:0">PULSE</h4>
+        <span class="tag gold">4000🪙 / 18★</span>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:12px">Rapid fire. Fastest shooting rate! But weaker individual bullets.</p>
+      <div class="stat-bar"><label>Speed</label><div class="bar"><div class="fill" style="width:80%;background:#0f0"></div></div></div>
+      <div class="stat-bar"><label>Trail</label><div class="bar"><div class="fill" style="width:60%;background:#0af"></div></div></div>
+      <div class="stat-bar"><label>Fire</label><div class="bar"><div class="fill" style="width:100%;background:#ff0"></div></div></div>
+      <div class="stat-bar"><label>DMG</label><div class="bar"><div class="fill" style="width:50%;background:#f80"></div></div></div>
+      <p style="font-size:11px;color:var(--accent);margin-top:8px">🔫 RAPID FIRE CANNON</p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="color:#ff4444;margin:0">NOVA</h4>
+        <span class="tag gold">6000🪙 / 28★</span>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:12px">The ultimate. Fast + strong. Fragile: -1 life. High risk, high reward.</p>
+      <div class="stat-bar"><label>Speed</label><div class="bar"><div class="fill" style="width:100%;background:#0f0"></div></div></div>
+      <div class="stat-bar"><label>Trail</label><div class="bar"><div class="fill" style="width:80%;background:#0af"></div></div></div>
+      <div class="stat-bar"><label>Fire</label><div class="bar"><div class="fill" style="width:60%;background:#ff0"></div></div></div>
+      <div class="stat-bar"><label>DMG</label><div class="bar"><div class="fill" style="width:100%;background:#f80"></div></div></div>
+      <p style="font-size:11px;color:var(--danger);margin-top:8px">🔫 FAST+STRONG · ⚠ -1 LIFE</p>
+    </div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <h2>🚀 DEVELOPMENT ROADMAP</h2>
+  <p style="margin-bottom:20px">Ordered by priority. Each sprint is a focused chunk of work.</p>
+
+  <div class="sprint">
+    <div class="sprint-item active">
+      <h4><span class="tag orange">NEXT</span> Sprint 1 — Restructure Levels</h4>
+      <p>Reduce 109 → ~63 levels. Cap 5 per constellation. Make each level feel distinct.</p>
+      <ul>
+        <li>Trim constellation star patterns to max 5 stars</li>
+        <li>Steeper difficulty jumps between levels</li>
+        <li>Rebalance enemy counts, speeds, target %</li>
+      </ul>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 2 — Enemy Introductions</h4>
+      <p>"THREAT DETECTED" briefing screen when new enemy type first appears.</p>
+      <ul>
+        <li>Show enemy name, sprite, behaviour, counter-strategy</li>
+        <li>Only shows once per save file</li>
+        <li>Skippable with tap</li>
+      </ul>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 3 — Boss Overhaul <a href="https://github.com/liteko702/zone-defence/issues/1" style="color:var(--accent);font-size:12px">#1</a></h4>
+      <p>Make boss fights epic. Unique music, intro sequence, multi-phase fights.</p>
+      <ul>
+        <li>Unique boss music (fast electronic, building intensity)</li>
+        <li>Boss intro sequence — name card, warning siren</li>
+        <li>Multi-phase: behaviour changes at 50% and 25% HP</li>
+        <li>Boss health bar, attack patterns, death animation</li>
+      </ul>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 4 — Map Avatar & Navigation</h4>
+      <p>Your ship appears on the map and flies between constellation nodes.</p>
+      <ul>
+        <li>Player ship avatar on map (matches equipped ship)</li>
+        <li>Fly animation between nodes</li>
+        <li>More visual detail on constellation nodes</li>
+        <li>Level preview panel (enemies, target, bonus timer)</li>
+      </ul>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 5 — New Galaxies</h4>
+      <p>Expand with more galaxies, each with new enemy types and mechanics.</p>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 6 — Ship Upgrades & Visuals</h4>
+      <p>Better ship sprites, upgrade trees, visual weapon differences.</p>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 7 — Shop & Economy <a href="https://github.com/liteko702/zone-defence/issues/2" style="color:var(--accent);font-size:12px">#2</a></h4>
+      <p>Skins, trails, upgrades in the SHOP tab.</p>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 8 — Polish & QoL</h4>
+      <p>Tutorial, cinematics, PWA, bonus timer system.</p>
+    </div>
+
+    <div class="sprint-item">
+      <h4>Sprint 9 — Social & Replayability</h4>
+      <p>Achievements, leaderboards, endless mode, daily challenges.</p>
+    </div>
+  </div>
+</section>
+
+<!-- AUDIO PROMPTS -->
+<section id="audio">
+  <h2>🎵 AUDIO — PROMPTS & LINKS</h2>
+  <p style="margin-bottom:16px">Music tracks needed for the game. Use these prompts with <a href="https://suno.com" target="_blank" style="color:var(--accent)">Suno</a> or <a href="https://www.udio.com" target="_blank" style="color:var(--accent)">Udio</a>.</p>
+
+  <div class="prompt-box">
+    <div class="label">🎵 Boss Battle Music — boss.mp3</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Intense electronic boss battle music for a retro arcade space game.
+Fast tempo (150-170 BPM), aggressive synth leads, heavy bass drops,
+building tension. Pulsing arpeggios, distorted sawtooth waves,
+dramatic breakdowns. Think TRON meets Mega Man boss fight.
+Dark, urgent, relentless energy. No vocals. 2-3 minutes, loopable.
+
+Tags: electronic, synthwave, boss battle, arcade, chiptune, intense, dark</div>
+    <div class="link">🔗 <a href="https://suno.com/create" target="_blank">Open Suno</a> · <a href="https://www.udio.com/create" target="_blank">Open Udio</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🎵 Victory Sting — victory.mp3</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Short triumphant victory fanfare for a retro space arcade game.
+Bright, uplifting, celebratory. Ascending synth melody with sparkle effects.
+Chiptune meets orchestral. Think level complete in a classic Nintendo game.
+3-5 seconds, punchy and satisfying. No vocals.
+
+Tags: fanfare, victory, chiptune, arcade, short, triumphant, retro</div>
+    <div class="link">🔗 <a href="https://suno.com/create" target="_blank">Open Suno</a> · <a href="https://www.udio.com/create" target="_blank">Open Udio</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🎵 Game Over Sting — gameover.mp3</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Short dramatic game over sound for a retro space arcade game.
+Descending tones, minor key, slightly melancholic but not depressing.
+Electronic/chiptune style. Synth brass stab followed by a low fade.
+3-5 seconds. Think classic arcade "wah wah waaah" but futuristic.
+No vocals.
+
+Tags: game over, arcade, chiptune, short, dramatic, retro, electronic</div>
+    <div class="link">🔗 <a href="https://suno.com/create" target="_blank">Open Suno</a> · <a href="https://www.udio.com/create" target="_blank">Open Udio</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🎵 Andromeda Guardian Boss Theme (future)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Mysterious electronic boss music for first boss encounter in a space game.
+Medium tempo (130 BPM), eerie pads, pulsing bass, building layers.
+Starts ambient and ominous, gradually adds intensity. Crystal-like synth arpeggios.
+Guardian/sentinel vibe — ancient and powerful. Loopable, 2-3 minutes. No vocals.
+
+Tags: electronic, ambient, boss battle, space, mysterious, synthwave, atmospheric</div>
+    <div class="link">🔗 <a href="https://suno.com/create" target="_blank">Open Suno</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🎵 Milky Way Wyrm Boss Theme (future)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Aggressive electronic boss music for a serpentine space wyrm encounter.
+Fast tempo (155 BPM), writhing synth leads that snake and coil,
+heavy distorted bass, chaotic arpeggios. Feels dangerous and alive.
+Breakcore-influenced glitch elements. Relentless pursuit energy.
+Loopable, 2-3 minutes. No vocals.
+
+Tags: electronic, aggressive, boss battle, glitch, breakcore, space, intense</div>
+    <div class="link">🔗 <a href="https://suno.com/create" target="_blank">Open Suno</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🎵 Nebula Lord Final Boss Theme (future)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Epic final boss electronic music for the ultimate space game encounter.
+High tempo (170 BPM), massive layered synths, orchestral stabs,
+phase-shifting effects that warp and distort. Multiple sections building
+to a climax. Feels cosmic and unstoppable. The final frontier.
+Cathedral-like reverb on lead synths. Loopable, 3 minutes. No vocals.
+
+Tags: electronic, epic, final boss, orchestral, synthwave, space opera, climactic</div>
+    <div class="link">🔗 <a href="https://suno.com/create" target="_blank">Open Suno</a></div>
+  </div>
+
+  <h3>Existing Audio</h3>
+  <table>
+    <tr><th>Track</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>Menu music</td><td><span class="check">✅</span> Done</td><td>MP3 + synth fallback</td></tr>
+    <tr><td>Theme music</td><td><span class="check">✅</span> Done</td><td>MP3 + synth fallback</td></tr>
+    <tr><td>Galaxy 1 (Andromeda)</td><td><span class="check">✅</span> Done</td><td>MP3 + synth fallback</td></tr>
+    <tr><td>Galaxy 2 (Milky Way)</td><td><span class="check">✅</span> Done</td><td>MP3 + synth fallback</td></tr>
+    <tr><td>Galaxy 3 (Nebula Prime)</td><td><span class="check">✅</span> Done</td><td>MP3 + synth fallback</td></tr>
+    <tr><td>24 SFX</td><td><span class="check">✅</span> Done</td><td>Web Audio synthesis</td></tr>
+    <tr><td>Boss music</td><td><span class="cross">❌</span> Needed</td><td>See prompt above</td></tr>
+    <tr><td>Victory sting</td><td><span class="cross">❌</span> Needed</td><td>See prompt above</td></tr>
+    <tr><td>Game over sting</td><td><span class="cross">❌</span> Needed</td><td>See prompt above</td></tr>
+    <tr><td>Per-boss themes</td><td>📋 Planned</td><td>After boss overhaul</td></tr>
+  </table>
+</section>
+
+<!-- ART ASSETS -->
+<section id="art">
+  <h2>🎨 ART ASSETS — PROMPTS & SPECS</h2>
+  <p style="margin-bottom:16px">Art to commission or generate. Use prompts with <a href="https://openai.com/dall-e-3" target="_blank" style="color:var(--accent)">DALL-E</a>, <a href="https://midjourney.com" target="_blank" style="color:var(--accent)">Midjourney</a>, or <a href="https://www.pixilart.com" target="_blank" style="color:var(--accent)">Pixilart</a> for pixel art.</p>
+
+  <h3>🎯 Priority Art (Sprint 2-3)</h3>
+
+  <div class="prompt-box">
+    <div class="label">🖼️ Enemy Portraits — for briefing screens (7 needed)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Pixel art portrait of a [ENEMY TYPE] enemy spaceship for an arcade game.
+Dark space background with subtle nebula glow. Detailed sprite art style.
+128×128 pixel canvas, transparent background PNG.
+Retro sci-fi aesthetic, neon accent lighting, menacing appearance.
+
+Types needed:
+1. Patrol Drone — blue disc with scanning beam, surveillance craft
+2. Hunter — red interceptor with forward-swept wings, aggressive
+3. Serpent Drone — green segmented worm, bio-mechanical, targeting sensors
+4. Armor Tank — gold armoured gunship, heavy plating, yellow visor slit
+5. Biomech Entity — pink organic blob with two nuclei, dashed division line
+6. Crystal Ship — purple translucent diamond, ethereal energy field, phase-shifting
+7. Ring Drone — orange ring structure with spinning energy arcs, central core</div>
+    <div class="link">🔗 <a href="https://openai.com/dall-e-3" target="_blank">DALL-E</a> · <a href="https://midjourney.com" target="_blank">Midjourney</a> · <a href="https://www.pixilart.com" target="_blank">Pixilart (hand-draw)</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🖼️ Boss Splash Art — for intro sequences (3 needed)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Epic pixel art boss splash screen for a retro space arcade game.
+Full screen illustration, dark space background with dramatic lighting.
+Cinematic composition. 480×270 pixel canvas.
+
+Bosses needed:
+1. ANDROMEDA GUARDIAN — ancient sentinel, crystalline blue hull, 8 shield nodes, glowing core, serene but powerful
+2. MILKY WAY WYRM — serpentine space dragon, segmented purple body, energy coils, multiple red eyes, writhing
+3. NEBULA LORD — cosmic entity, phase-shifting form, orange/red energy, unstable reality warping around it, tentacles of light</div>
+    <div class="link">🔗 <a href="https://openai.com/dall-e-3" target="_blank">DALL-E</a> · <a href="https://midjourney.com" target="_blank">Midjourney</a></div>
+  </div>
+
+  <h3>🔮 Future Art (Sprint 4-6)</h3>
+
+  <div class="prompt-box">
+    <div class="label">🖼️ Constellation Icons — for map nodes (12 needed)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Small pixel art icon of the [CONSTELLATION] constellation for a space game map.
+64×64 pixel canvas, dark background, glowing star connections.
+Stylised with the constellation's mythological theme.
+Neon accent colour matching the game's palette.
+
+Constellations:
+Cassiopeia (#a8f) · Lyra (#0fa) · Cygnus (#0ff) · Aquila (#4af)
+Perseus (#f8a) · Phoenix (#fa0) · Leo (#ff0) · Gemini (#8ff)
+Sagittarius (#f4a) · Scorpius (#f44) · Draco (#8f0) · Orion (#6cf)</div>
+    <div class="link">🔗 <a href="https://openai.com/dall-e-3" target="_blank">DALL-E</a> · <a href="https://www.pixilart.com" target="_blank">Pixilart</a></div>
+  </div>
+
+  <div class="prompt-box">
+    <div class="label">🖼️ Ship Artwork — for hangar detail view (6 needed)</div>
+    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+    <div class="prompt-text">Detailed pixel art spaceship for an arcade game hangar screen.
+Side/three-quarter view. 128×128 pixel canvas, transparent background.
+Each ship has unique silhouette and colour scheme:
+
+1. VIPER — sleek blue/cyan scout, minimal wings, fast look, no weapons visible
+2. STRIKER — angular red fighter, chin-mounted guns, aggressive stance
+3. PHANTOM — dark purple stealth cutter, elongated body, magenta trail glow
+4. TITAN — bulky orange/gold tank, heavy armour plating, double-barrel turret
+5. PULSE — streamlined cyan/teal, exposed rapid-fire cannon array, electric glow
+6. NOVA — sharp crimson, compact but dangerous, glowing red exhaust, glass cannon vibe</div>
+    <div class="link">🔗 <a href="https://openai.com/dall-e-3" target="_blank">DALL-E</a> · <a href="https://midjourney.com" target="_blank">Midjourney</a></div>
+  </div>
+
+  <h3>Art Status</h3>
+  <table>
+    <tr><th>Asset</th><th>Count</th><th>Status</th><th>Sprint</th></tr>
+    <tr><td>Enemy portraits</td><td>7</td><td><span class="cross">❌</span> Needed</td><td>Sprint 2</td></tr>
+    <tr><td>Boss splash art</td><td>3</td><td><span class="cross">❌</span> Needed</td><td>Sprint 3</td></tr>
+    <tr><td>Constellation icons</td><td>12</td><td>📋 Planned</td><td>Sprint 4</td></tr>
+    <tr><td>Ship artwork</td><td>6</td><td>📋 Planned</td><td>Sprint 6</td></tr>
+    <tr><td>Galaxy backgrounds</td><td>3+</td><td>📋 Planned</td><td>Sprint 5</td></tr>
+  </table>
+</section>
+
+<!-- BUGS -->
+<section id="bugs">
+  <h2>🐛 KNOWN BUGS</h2>
+  <table>
+    <tr><th>#</th><th>Issue</th><th>Priority</th><th>Status</th></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/1" style="color:var(--accent)">#1</a></td><td>Boss encounter gameplay not implemented</td><td><span class="tag red">High</span></td><td>Open</td></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/2" style="color:var(--accent)">#2</a></td><td>Shop UI not implemented</td><td><span class="tag orange">Medium</span></td><td>Open</td></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/5" style="color:var(--accent)">#5</a></td><td>Ship skins not rendered in gameplay</td><td><span class="tag orange">Medium</span></td><td>Open</td></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/6" style="color:var(--accent)">#6</a></td><td>Trail effects not rendered</td><td><span class="tag orange">Medium</span></td><td>Open</td></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/7" style="color:var(--accent)">#7</a></td><td>Missing audio tracks</td><td><span class="tag orange">Medium</span></td><td>Open</td></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/8" style="color:var(--accent)">#8</a></td><td>PWA manifest</td><td><span class="tag blue">Low</span></td><td>Open</td></tr>
+    <tr><td><a href="https://github.com/liteko702/zone-defence/issues/4" style="color:var(--accent)">#4</a></td><td><s>NEXT button overflow</s></td><td><span class="tag green">Fixed</span></td><td>Closed</td></tr>
+  </table>
+</section>
+
+<!-- SESSION LOG -->
+<section id="log">
+  <h2>📝 SESSION LOG</h2>
+
+  <div class="card" style="margin:12px 0">
+    <h4 style="color:var(--accent);margin-top:0">2026-02-27 — Analysis & Planning</h4>
+    <ul style="font-size:13px;padding-left:20px">
+      <li>Created GAME_BREAKDOWN.md (full level/enemy/scoring analysis)</li>
+      <li>Fixed hangar font scaling on wide screens</li>
+      <li>Consolidated DESIGN.md as single source of truth</li>
+      <li>Built this visual guide page</li>
+      <li>Planned: 5 levels per constellation, enemy intros, boss overhaul, map avatar</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin:12px 0">
+    <h4 style="color:var(--accent);margin-top:0">2026-02-24 — Bug Fixes & Hangar</h4>
+    <ul style="font-size:13px;padding-left:20px">
+      <li>Fixed 3-digit hex + alpha append bug (ships crashing on non-Viper)</li>
+      <li>Fixed d-pad disappearing on mobile (CSS class-based visibility)</li>
+      <li>Rewrote <code>drawShipDetailed</code> as standalone renderer</li>
+      <li>Added ship-specific trail colours + engine particles</li>
+      <li>Reduced ship size in gameplay (1.8x → 1.2x)</li>
+      <li>Increased early game pace (more enemies, faster base speed, 3x powerup spawns)</li>
+      <li>Standardised hangar font sizes</li>
+      <li>Created GitHub issues #1-#8</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <p>Zone Defence — <a href="https://zone-defence.kbot.uk">Play</a> · <a href="https://github.com/liteko702/zone-defence">GitHub</a> · Built with 🔧 by the workshop crew</p>
+</footer>
+
+<script>
+function copyPrompt(btn){
+  const text=btn.parentElement.querySelector('.prompt-text').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent='Copy',2000);
+  });
+}
+</script>
+</body>
+</html>
