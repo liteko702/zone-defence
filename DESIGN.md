@@ -3,7 +3,7 @@
 **Live:** https://zone-defence.kbot.uk
 **GitHub:** https://github.com/liteko702/zone-defence
 **Discord:** #zone-defence
-**Updated:** 2026-02-27
+**Updated:** 2026-02-28
 
 ---
 
@@ -38,10 +38,11 @@ Space-themed Qix-style territory capture game. Player pilots a spaceship along t
 
 ### Core Gameplay ✅
 - Qix territory claiming (border movement, trail cutting, flood-fill)
-- 7 enemy types with unique behaviours + boss type
+- 11 enemy types with unique behaviours + boss type (bounce, chase, phase, tracer, shield, orbit, split, patrol, spiral, sniper, swarm)
 - 6 unlockable ships (Viper/Striker/Phantom/Titan/Pulse/Nova)
 - Auto-shooting (per ship `canShoot`)
 - Capture kills (+500), 4 power-up types (Speed/Shield/Life/Slow)
+- 3 combat items (Bomb/Laser/Mine) purchasable in shop
 - Star ratings (1-3 per level), coin economy
 - Fullscreen landscape lock, auto-pause, moveable d-pad
 - Settings cog (⚙) with music/SFX toggles + volume sliders + d-pad size
@@ -133,32 +134,41 @@ Space-themed Qix-style territory capture game. Player pilots a spaceship along t
 
 ## 🚀 ROADMAP — What's Next
 
-### Sprint 1: Restructure Levels (NEXT UP)
+### Sprint 1: Restructure Levels ✅ DONE (2026-02-27)
 **Goal:** Reduce from 109 to ~63 levels. Make each level feel distinct.
 
-- [ ] **Cap every constellation at 5 levels max** — trim star patterns or select 5 representative stars from each
-- [ ] Steeper difficulty jumps between levels (each level should feel noticeably different)
-- [ ] Rebalance enemy counts, speeds, and target % for fewer but punchier levels
-- [ ] Update GAME_BREAKDOWN.md with new structure
+- [x] **Cap every constellation at 5 levels max** — trimmed all 12 constellations to 5 stars
+- [x] Steeper difficulty jumps between levels (punchier enemy count/speed/target scaling)
+- [x] Rebalance enemy counts, speeds, and target % for fewer but punchier levels
+- [x] 63 total levels (60 constellation + 3 bosses)
 
-### Sprint 2: Enemy Introductions
-**Goal:** Players understand what each enemy does before fighting it.
+### Sprint 2: New Enemies + Combat Items ✅ DONE (2026-02-28)
+**Goal:** More enemy variety with learnable patterns + player combat tools.
 
-- [ ] **"THREAT DETECTED" briefing screen** when a new enemy type first appears
-- [ ] Show enemy name, sprite, behaviour description, and counter-strategy
-- [ ] Only shows once per save (tracked in localStorage)
-- [ ] Skippable with tap
+- [x] **4 new enemy types:** Patrol (fixed path), Spiral (shuriken), Sniper (turret), Swarm (flocking)
+- [x] **3 combat items** purchasable in shop: Bomb (💣), Laser (⚡), Mine (💥)
+- [x] Shop tab functional with buy buttons + coin display
+- [x] Item HUD buttons during gameplay + keyboard shortcuts (1/2/3)
+- [x] Boss now takes reduced damage from bullets (1/3 dmg when not captured)
+- [x] Fixed orbit enemy breaching claimed territory
+- [x] Dotted path lines connecting constellations on galaxy map
+- [x] Boss label repositioned above node
+- [x] Bigger HUD text (score, zone %, lives)
+- [x] More animated background (3× shooting stars, 60% more debris)
+- [ ] **"THREAT DETECTED" briefing screen** when a new enemy type first appears (moved to Sprint 3)
+- [ ] Formation enemies (patterned groups) — future sprint
 
-### Sprint 3: Boss Overhaul ([#1](https://github.com/liteko702/zone-defence/issues/1))
-**Goal:** Boss fights feel epic and memorable.
+### Sprint 3: Boss Overhaul + Enemy Intros ([#1](https://github.com/liteko702/zone-defence/issues/1))
+**Goal:** Boss fights feel epic and memorable. Enemy introductions.
 
-- [ ] **Unique boss music** — faster BPM, aggressive electronic, building intensity
+- [ ] **"THREAT DETECTED" briefing screen** for new enemy types
+- [ ] **Unique boss music** — per-boss tracks (boss_andromeda.mp3, boss_milkyway.mp3 added)
 - [ ] **Boss intro sequence** — name card, warning siren, camera zoom
 - [ ] **Multi-phase fights** — behaviour changes at 50% and 25% HP
 - [ ] Boss health bar UI
 - [ ] Boss attack patterns (projectiles, area denial, spawning minions)
 - [ ] Boss death animation (explosion cascade)
-- [ ] Boss takes damage from bullets + territory capture
+- [ ] Formation enemy levels (patterned groups in specific arrangements)
 
 ### Sprint 4: Map Avatar & Navigation
 **Goal:** Map screen feels alive and personal.
