@@ -658,6 +658,8 @@ const AUDIO_FILES={
     galaxy2:'audio/galaxy2.mp3',
     galaxy3:'audio/galaxy3.mp3',
     boss:'audio/boss.mp3',
+    boss_andromeda:'audio/boss_andromeda.mp3',
+    boss_milkyway:'audio/boss_milkyway.mp3',
     pause:'audio/pause.mp3',
     // One-shots (no loop)
     victory:'audio/victory.mp3',
@@ -701,7 +703,12 @@ function audioReady(key){return audioCache[key]&&(audioAvailable[key]||audioCach
 function getMusicKey(scene){
     if(scene==='menu')return audioReady('menu')?'menu':(audioReady('theme')?'theme':null);
     if(scene==='title')return audioReady('theme')?'theme':(audioReady('menu')?'menu':null);
-    if(scene==='boss')return audioReady('boss')?'boss':null;
+    if(scene==='boss'){
+        const uni=LEVELS[curLv]?.universe??0;
+        if(uni===0&&audioReady('boss_andromeda'))return 'boss_andromeda';
+        if(uni===1&&audioReady('boss_milkyway'))return 'boss_milkyway';
+        return audioReady('boss')?'boss':null;
+    }
     if(scene==='gameplay'){
         const uni=LEVELS[curLv]?.universe??0;
         if(uni===0)return audioReady('galaxy1')?'galaxy1':null;
@@ -971,6 +978,8 @@ else if(state==='dead_pause'){sfxSel();respawn();handled=true;}
 else if(state==='dead'){sfxSel();startLv(curLv);handled=true;}
 else if(state==='won'){sfxSel();if(curLv<LEVELS.length-1)startLv(curLv+1);else showMap();handled=true;}
 else if(state==='levelIntro'){sfxSel();beginLv();handled=true;}
+else if(state==='threatBriefing'){sfxSel();showNextThreat();handled=true;}
+else if(state==='bossIntro'){sfxSel();bossIntroActive=false;beginLvActual();handled=true;}
 if(handled){e.stopImmediatePropagation();return;}
 }});
 addEventListener('keyup',e=>keys[e.key]=false);
@@ -1297,21 +1306,49 @@ function moveE(dt){
                 e.orbitAngle+=0.3;
             }
         }else if(e.type==='boss'){
-            // Boss: slow wanderer, shoots rockets at player
-            if(e.stunTimer>0){e.stunTimer-=dt;} // stunned = can't move or shoot
+            // Boss: multi-phase — gets harder as HP drops
+            const hpPct=e.hp/e.maxHp;
+            const phase=hpPct<=0.25?3:hpPct<=0.5?2:1;
+            const speedMult=phase===3?1.8:phase===2?1.4:1;
+            const fireRate=phase===3?0.8:phase===2?1.2:1.5;
+            
+            if(e.stunTimer>0){e.stunTimer-=dt;}
             else if(e.captured){
-                // Captured in zone — just sit still, take bullet damage
+                // Captured in zone — sit still, take full bullet damage
             }else{
-                // Wander randomly, change direction occasionally
+                // Movement — phase 2+ chases player sometimes
                 e.orbitAngle+=dt;
-                if(Math.sin(e.orbitAngle*2)>0.95){e.dx=(Math.random()-0.5)*2;e.dy=(Math.random()-0.5)*2;}
-                e.fx+=e.dx*e.speed*dt;e.fy+=e.dy*e.speed*dt;
+                if(phase>=2&&Math.random()<0.02*dt*60){
+                    // Chase player briefly
+                    const px3=player.x-e.fx,py3=player.y-e.fy,pd3=Math.sqrt(px3*px3+py3*py3)||1;
+                    e.dx=px3/pd3;e.dy=py3/pd3;
+                }else if(Math.sin(e.orbitAngle*2)>0.95){
+                    e.dx=(Math.random()-0.5)*2;e.dy=(Math.random()-0.5)*2;
+                }
+                e.fx+=e.dx*e.speed*speedMult*dt;e.fy+=e.dy*e.speed*speedMult*dt;
+                
                 // Shoot rockets at player
                 e.rocketTimer-=dt;
                 if(e.rocketTimer<=0){
                     const rdx=player.x-e.fx,rdy=player.y-e.fy,rd=Math.sqrt(rdx*rdx+rdy*rdy)||1;
                     rockets.push({x:e.fx*CELL+CELL/2,y:e.fy*CELL+CELL/2,dx:rdx/rd,dy:rdy/rd,life:3,speed:CELL*6});
-                    e.rocketTimer=1.5+Math.random()*2;
+                    // Phase 3: fires spread shot (3 rockets)
+                    if(phase>=3){
+                        const spread=0.3;
+                        rockets.push({x:e.fx*CELL+CELL/2,y:e.fy*CELL+CELL/2,dx:rdx/rd*Math.cos(spread)-rdy/rd*Math.sin(spread),dy:rdx/rd*Math.sin(spread)+rdy/rd*Math.cos(spread),life:3,speed:CELL*5});
+                        rockets.push({x:e.fx*CELL+CELL/2,y:e.fy*CELL+CELL/2,dx:rdx/rd*Math.cos(-spread)-rdy/rd*Math.sin(-spread),dy:rdx/rd*Math.sin(-spread)+rdy/rd*Math.cos(-spread),life:3,speed:CELL*5});
+                    }
+                    // Phase 2+: also spawns minion occasionally
+                    if(phase>=2&&Math.random()<0.3){
+                        const ma=Math.random()*Math.PI*2;
+                        const mex=Math.round(e.fx+Math.cos(ma)*3),mey=Math.round(e.fy+Math.sin(ma)*3);
+                        if(mex>1&&mex<COLS-1&&mey>1&&mey<ROWS-1&&cAt(mex,mey)===EMPTY){
+                            enemies.push({x:mex,y:mey,fx:mex,fy:mey,dx:Math.cos(ma),dy:Math.sin(ma),speed:4,origSpeed:4,type:'chase',chase:true,hp:1,phaseTimer:0,orbitAngle:0,patrolPhase:0,spiralR:2,sniperTimer:3,rot:0,stuckT:0});
+                            sp(mex*CELL+CELL/2,mey*CELL+CELL/2+GRID_TOP,'#f44',10,30,0.3);
+                            addFT(mex*CELL+CELL/2,mey*CELL+CELL/2,'MINION!','#f44',8);
+                        }
+                    }
+                    e.rocketTimer=fireRate+Math.random();
                     beep(150,0.15,'sawtooth',0.04);
                 }
             }
@@ -1428,36 +1465,17 @@ function updateBullets(dt){
                     e.hp-=dmg;
                     sp(ex,ey-GRID_TOP,'#f80',5,20,0.15);
                     addFT(ex,ey-GRID_TOP-10,Math.ceil(e.hp)+'/'+e.maxHp+' HP','#f80',7);
-                    if(e.hp<=0){
-                        e.dead=true;score+=2000;bossRef=null;rockets=[];
-                        addFT(ex,ey-GRID_TOP-20,'BOSS DEFEATED!','#ff0',16);
-                        addFT(ex,ey-GRID_TOP,'+2000','#0f0',12);
-                        sp(ex,ey-GRID_TOP,'#ff0',40,80,0.6);
-                        shakeA=12;shakeD=0.5;
-                        for(let k=0;k<5;k++)setTimeout(()=>{beep(400+k*100,0.15,'square',0.06);sp(ex+(Math.random()-0.5)*40,ey-GRID_TOP+(Math.random()-0.5)*40,'#fa0',10,40,0.3);},k*100);
-                    }
+                    if(e.hp<=0){triggerBossDeath(e,ex,ey);}
                     bullets.splice(i,1);break;
                 }
                 e.hp-=(b.dmg||1);
                 sp(ex,ey-GRID_TOP,'#fff',8,30,0.2);
                 sfxHit();
                 if(e.type==='boss'){
-                    // Show HP remaining
-                    addFT(ex,ey-GRID_TOP-10,e.hp+'/'+e.maxHp+' HP','#f44',8);
+                    addFT(ex,ey-GRID_TOP-10,Math.ceil(e.hp)+'/'+e.maxHp+' HP','#f44',8);
                 }
                 if(e.hp<=0){
-                    // Kill enemy
-                    if(e.type==='boss'){
-                        // Boss defeated!
-                        e.dead=true;score+=2000;bossRef=null;rockets=[];
-                        addFT(ex,ey-GRID_TOP-20,'BOSS DEFEATED!','#ff0',16);
-                        addFT(ex,ey-GRID_TOP,'+2000','#0f0',12);
-                        sp(ex,ey-GRID_TOP,'#ff0',40,80,0.6);
-                        sp(ex,ey-GRID_TOP,'#f42',30,60,0.5);
-                        shakeA=12;shakeD=0.5;
-                        for(let k=0;k<5;k++)setTimeout(()=>{beep(400+k*100,0.15,'square',0.06);sp(ex+(Math.random()-0.5)*40,ey-GRID_TOP+(Math.random()-0.5)*40,'#fa0',10,40,0.3);},k*100);
-                        bullets.splice(i,1);break;
-                    }
+                    if(e.type==='boss'){triggerBossDeath(e,ex,ey);bullets.splice(i,1);break;}
                     if(e.type==='split'){
                         // Spawn 2 smaller faster enemies
                         for(let j=0;j<2;j++){
@@ -2242,7 +2260,30 @@ function render(time){
     const vg=c.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.7);
     vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,0.35)');
     c.fillStyle=vg;c.fillRect(0,0,W,H);
+    // Boss HP bar at top of screen
+    if(bossRef&&!bossRef.dead){
+        const barW2=Math.min(W*0.6,300),barH2=14;
+        const barX2=W/2-barW2/2,barY2=GRID_TOP+8;
+        const hpPct=Math.max(0,bossRef.hp/bossRef.maxHp);
+        // Background
+        c.fillStyle='rgba(0,0,0,0.7)';c.fillRect(barX2-2,barY2-2,barW2+4,barH2+4);
+        // HP bar
+        const hpCol=hpPct>0.5?'#f44':hpPct>0.25?'#f80':'#ff0';
+        c.fillStyle='#300';c.fillRect(barX2,barY2,barW2,barH2);
+        c.fillStyle=hpCol;c.fillRect(barX2,barY2,barW2*hpPct,barH2);
+        c.strokeStyle='#f44';c.lineWidth=1;c.strokeRect(barX2,barY2,barW2,barH2);
+        // Boss name
+        c.fillStyle='#fff';c.font='7px "Press Start 2P"';c.textAlign='center';c.textBaseline='middle';
+        c.fillText(bossRef.bossName+' — '+Math.ceil(bossRef.hp)+'/'+bossRef.maxHp,W/2,barY2+barH2/2);
+        // Phase indicator
+        if(hpPct<=0.25){c.fillStyle=`rgba(255,0,0,${0.3+0.3*Math.sin(time*0.01)})`;c.font='6px "Press Start 2P"';c.fillText('ENRAGED!',W/2,barY2+barH2+8);}
+        else if(hpPct<=0.5){c.fillStyle='#f80';c.font='6px "Press Start 2P"';c.fillText('PHASE 2',W/2,barY2+barH2+8);}
+    }
     // No scanlines during gameplay — keep it clean
+    // Threat briefing overlay
+    if(state==='threatBriefing')drawThreatBriefing(time);
+    // Boss intro overlay
+    if(state==='bossIntro'&&bossIntroActive)drawBossIntro(time);
     // Sandbox overlay
     if(sandboxOpen)renderSandboxPanel(time);
     c.restore();
@@ -2264,8 +2305,195 @@ let mapTransDir=0; // 1=zooming in, -1=zooming out
 let mapTransCx=0,mapTransCy=0; // center point of zoom target
 
 // Enemy type display names
-const ETYPE_NAMES={bounce:'PATROL',chase:'HUNTER',phase:'PHASE',tracer:'TRACER',shield:'ARMOR',orbit:'ORBIT',split:'SPLIT',patrol:'SENTRY',spiral:'SHURIKEN',sniper:'SNIPER',swarm:'SWARM',boss:'BOSS'};
+const ETYPE_NAMES={bounce:'PATROL DRONE',chase:'HUNTER',phase:'PHASE SHIFTER',tracer:'TRACER',shield:'ARMOR TANK',orbit:'ORBITER',split:'SPLITTER',patrol:'SENTRY',spiral:'SHURIKEN',sniper:'SNIPER TURRET',swarm:'SWARM DRONE',boss:'BOSS'};
 const ETYPE_COLORS={bounce:'#4af',chase:'#f44',phase:'#c4f',tracer:'#0f4',shield:'#ff0',orbit:'#fa0',split:'#f4a',patrol:'#48f',spiral:'#fa0',sniper:'#f44',swarm:'#8f8',boss:'#f00'};
+const ETYPE_DESC={
+    bounce:'BOUNCES OFF WALLS\nIN STRAIGHT LINES.\nPREDICTABLE BUT FAST.',
+    chase:'LOCKS ONTO YOU AND\nPURSUES RELENTLESSLY.\nKEEP MOVING!',
+    phase:'TELEPORTS TO A NEW\nPOSITION RANDOMLY.\nWATCH FOR THE FLASH!',
+    tracer:'FOLLOWS YOUR TRAIL!\nDON\'T CUT FOR TOO\nLONG OR IT\'LL CATCH UP.',
+    shield:'HEAVY ARMOR — TAKES\n2 HITS TO DESTROY.\nSHOOT TWICE OR CAPTURE.',
+    orbit:'CIRCLES THE ARENA\nIN AN ELLIPTICAL PATH.\nTIME YOUR CUTS.',
+    split:'SPLITS INTO 2 FAST\nBOUNCERS WHEN KILLED.\nCAPTURE IS SAFER.',
+    patrol:'FOLLOWS A FIXED PATH\nAROUND THE EDGES.\nLEARN THE ROUTE.',
+    spiral:'SPIRALS OUTWARD FROM\nTHE CENTER. RESETS\nWHEN IT REACHES EDGE.',
+    sniper:'STATIONARY TURRET.\nFIRES AIMED SHOTS!\nDESTROY IT QUICKLY.',
+    swarm:'TINY FLOCKING DRONES.\nWEAK ALONE, DEADLY\nIN GROUPS. SHOOT THEM.',
+};
+
+// Track which enemy types the player has seen
+let seenEnemies={};
+try{const d=JSON.parse(localStorage.getItem('zd6_seen'));if(d)seenEnemies=d;}catch(e){}
+function markSeen(etype){seenEnemies[etype]=true;try{localStorage.setItem('zd6_seen',JSON.stringify(seenEnemies));}catch(e){}}
+
+// Boss death cascade animation
+function triggerBossDeath(e,ex,ey){
+    e.dead=true;score+=2000;bossRef=null;rockets=[];
+    addFT(ex,ey-GRID_TOP-20,'BOSS DEFEATED!','#ff0',18);
+    addFT(ex,ey-GRID_TOP,'+2000','#0f0',14);
+    shakeA=20;shakeD=1.5;
+    // Explosion cascade — 12 bursts over 2 seconds
+    for(let k=0;k<12;k++){
+        setTimeout(()=>{
+            const ox=(Math.random()-0.5)*80,oy=(Math.random()-0.5)*80;
+            sp(ex+ox,ey-GRID_TOP+oy,'#ff0',25,60,0.5);
+            sp(ex+ox,ey-GRID_TOP+oy,'#f42',15,40,0.4);
+            sp(ex+ox,ey-GRID_TOP+oy,'#fff',8,20,0.2);
+            beep(200+k*50+Math.random()*200,0.12,'square',0.04);
+            shakeA=Math.max(shakeA,8);shakeD=Math.max(shakeD,0.3);
+        },k*150);
+    }
+    // Final big boom
+    setTimeout(()=>{
+        sp(ex,ey-GRID_TOP,'#fff',60,120,0.8);
+        sp(ex,ey-GRID_TOP,'#ff0',40,80,0.6);
+        shakeA=25;shakeD=0.8;
+        beep(80,0.5,'sawtooth',0.06);
+    },1800);
+    // Kill all remaining non-boss enemies as bonus
+    setTimeout(()=>{
+        for(const en of enemies){
+            if(!en.dead&&en.type!=='boss'){
+                en.dead=true;score+=100;
+                sp(en.fx*CELL+CELL/2,en.fy*CELL+CELL/2+GRID_TOP,'#ff0',10,30,0.3);
+            }
+        }
+        addFT(W/2,H/2,'ALL CLEAR!','#0f0',14);
+    },2200);
+}
+
+// Threat briefing state
+let threatQueue=[];
+let threatShowing=false;
+
+function checkNewThreats(lvl){
+    threatQueue=[];
+    const types=new Set();
+    for(const ed of lvl.enemies)types.add(ed.type);
+    if(lvl.bossEnemy)types.add('boss');
+    for(const t of types){
+        if(t!=='bounce'&&!seenEnemies[t]){
+            threatQueue.push(t);
+            markSeen(t);
+        }
+    }
+    // Always mark bounce as seen
+    if(!seenEnemies.bounce)markSeen('bounce');
+}
+
+function showNextThreat(){
+    if(threatQueue.length===0){threatShowing=false;beginLvActual();return;}
+    threatShowing=true;
+    const etype=threatQueue.shift();
+    _threatType=etype;
+    _threatTimer=0;
+}
+let _threatType=null,_threatTimer=0;
+
+function drawThreatBriefing(time){
+    if(!_threatType)return;
+    _threatTimer+=0.016;
+    const a=Math.min(1,_threatTimer*2); // fade in
+    
+    // Full screen dark overlay
+    c.fillStyle=`rgba(0,0,20,${0.85*a})`;c.fillRect(0,0,W,H);
+    
+    // Scanline effect
+    for(let y=0;y<H;y+=3){c.fillStyle=`rgba(0,0,0,${0.1*a})`;c.fillRect(0,y,W,1);}
+    
+    // Warning border
+    const pulse=0.5+0.5*Math.sin(time*0.008);
+    c.strokeStyle=`rgba(255,0,0,${(0.3+0.3*pulse)*a})`;c.lineWidth=3;
+    c.strokeRect(20,20,W-40,H-40);
+    
+    // "⚠ THREAT DETECTED" title
+    const fs=Math.max(12,Math.min(20,W*0.04));
+    c.fillStyle=`rgba(255,50,0,${a})`;c.font=fs+'px "Press Start 2P"';c.textAlign='center';c.textBaseline='top';
+    c.fillText('⚠ THREAT DETECTED',W/2,H*0.12);
+    
+    // Enemy sprite — draw it big in the center
+    const spriteSize=Math.min(W*0.2,H*0.15,80);
+    c.save();
+    drawEnemy(W/2,H*0.38,0,_threatType,time);
+    c.restore();
+    
+    // Enemy name
+    const col=ETYPE_COLORS[_threatType]||'#fff';
+    c.fillStyle=col;c.font=Math.max(10,fs*0.7)+'px "Press Start 2P"';c.textAlign='center';
+    c.fillText(ETYPE_NAMES[_threatType]||_threatType.toUpperCase(),W/2,H*0.55);
+    
+    // Description
+    const desc=ETYPE_DESC[_threatType]||'';
+    const lines=desc.split('\n');
+    c.fillStyle=`rgba(200,220,255,${a})`;c.font=Math.max(7,fs*0.4)+'px "Press Start 2P"';
+    for(let i=0;i<lines.length;i++){
+        c.fillText(lines[i],W/2,H*0.62+i*(fs*0.5+4));
+    }
+    
+    // "TAP TO CONTINUE"
+    c.fillStyle=`rgba(0,255,200,${0.4+0.4*Math.sin(time*0.005)})`;
+    c.font=Math.max(8,fs*0.4)+'px "Press Start 2P"';
+    c.fillText('TAP TO CONTINUE',W/2,H*0.85);
+}
+
+// Boss intro state
+let bossIntroActive=false,bossIntroTimer=0,bossIntroName='';
+
+function startBossIntro(bossName){
+    bossIntroActive=true;bossIntroTimer=0;bossIntroName=bossName;
+    beep(80,0.5,'sawtooth',0.03);
+    setTimeout(()=>beep(60,0.6,'sawtooth',0.04),200);
+    setTimeout(()=>beep(100,0.4,'square',0.05),500);
+}
+
+function drawBossIntro(time){
+    bossIntroTimer+=0.016;
+    const t=bossIntroTimer;
+    const a=t<0.5?t*2:t>3?Math.max(0,1-(t-3)*2):1;
+    
+    // Dark overlay
+    c.fillStyle=`rgba(0,0,0,${0.9*a})`;c.fillRect(0,0,W,H);
+    
+    // Warning stripes
+    const stripeA=0.15+0.1*Math.sin(time*0.01);
+    for(let y=0;y<H;y+=40){
+        c.fillStyle=`rgba(255,0,0,${stripeA*a})`;
+        c.fillRect(0,y,W,4);
+    }
+    
+    // "⚠ WARNING" flashing
+    if(t<2.5){
+        const flash=Math.sin(time*0.012)>0;
+        if(flash){
+            const fs=Math.max(14,Math.min(24,W*0.05));
+            c.fillStyle=`rgba(255,0,0,${a})`;c.font=fs+'px "Press Start 2P"';
+            c.textAlign='center';c.textBaseline='middle';
+            c.fillText('⚠ WARNING ⚠',W/2,H*0.3);
+        }
+    }
+    
+    // Boss name slides in
+    if(t>0.8){
+        const slide=Math.min(1,(t-0.8)*2);
+        const fs=Math.max(12,Math.min(20,W*0.04));
+        const x=W/2+(1-slide)*W*0.5;
+        c.fillStyle=`rgba(255,50,0,${a})`;c.font=fs+'px "Press Start 2P"';
+        c.textAlign='center';c.textBaseline='middle';
+        c.fillText(bossIntroName,x,H*0.5);
+        
+        // Subtitle
+        if(t>1.5){
+            c.fillStyle=`rgba(255,200,0,${a*0.7})`;c.font=Math.max(7,fs*0.4)+'px "Press Start 2P"';
+            c.fillText('CAPTURE IT IN A ZONE TO DEAL FULL DAMAGE!',W/2,H*0.6);
+        }
+    }
+    
+    // Auto-advance after 3.5 seconds
+    if(t>3.5){
+        bossIntroActive=false;
+        beginLvActual();
+    }
+}
 
 function getConstellationLayout(cstKey,cx,cy,size){
     const cst=CONSTELLATIONS[cstKey];if(!cst)return{stars:[],lines:[]};
@@ -2867,7 +3095,28 @@ function startLv(i){
     document.getElementById('l-desc').textContent=desc;
     showScr('s-lvl');state='levelIntro';
 }
-function beginLv(){hideScr();document.getElementById('hud').style.display='flex';if('ontouchstart' in window||navigator.maxTouchPoints>0)document.getElementById('dp').classList.add('active');cogBtn.style.display='none';hideSettings();state='playing';startMusic(LEVELS[curLv]?.boss?'boss':'gameplay');}
+function beginLv(){
+    hideScr();
+    const lv=LEVELS[curLv];
+    // Check for new enemy threats
+    checkNewThreats(lv);
+    if(threatQueue.length>0){
+        state='threatBriefing';
+        showNextThreat();
+        return;
+    }
+    // Check for boss intro
+    if(lv.boss&&lv.bossEnemy){
+        state='bossIntro';
+        startBossIntro(lv.bossEnemy.name||lv.name);
+        startMusic('boss');
+        return;
+    }
+    beginLvActual();
+}
+function beginLvActual(){
+    hideScr();document.getElementById('hud').style.display='flex';if('ontouchstart' in window||navigator.maxTouchPoints>0)document.getElementById('dp').classList.add('active');cogBtn.style.display='none';hideSettings();state='playing';startMusic(LEVELS[curLv]?.boss?'boss':'gameplay');
+}
 function respawn(){const ship=SHIPS[curShip];for(const t of trail)grid[t.y][t.x]=EMPTY;trail=[];player.cutting=false;player.x=Math.floor(COLS/2);player.y=0;player.vx=player.x;player.vy=0;player.mt=0;inputDir='none';playerSpeed=ship.speed;trailSpeed=ship.trailSpeed;shieldTimer=0;hideScr();state='playing';}
 
 // Buttons
@@ -3507,6 +3756,16 @@ canShoot=function(){if(sandboxOpen!==undefined&&state==='playing'&&sandboxInfini
 
 // Hook sandbox panel tap into canvas
 let _sbTapHandled=false;
+// Tap to dismiss threat briefing / boss intro
+cv.addEventListener('touchend',e=>{
+    if(state==='threatBriefing'){sfxSel();showNextThreat();e.stopPropagation();return;}
+    if(state==='bossIntro'){sfxSel();bossIntroActive=false;beginLvActual();e.stopPropagation();return;}
+},{passive:false,capture:true});
+cv.addEventListener('click',e=>{
+    if(state==='threatBriefing'){sfxSel();showNextThreat();return;}
+    if(state==='bossIntro'){sfxSel();bossIntroActive=false;beginLvActual();return;}
+});
+
 cv.addEventListener('touchend',e=>{
     if(state!=='playing'||!sandboxOpen)return;
     _sbTapHandled=true;setTimeout(()=>_sbTapHandled=false,400);
@@ -3561,7 +3820,7 @@ function loop(time){
     if(state==='dying'){deathT-=dt;if(deathT<=0){document.getElementById('d-info').textContent=`${lives} ♥ LEFT - ${getPct()}% CLAIMED`;showScr('s-die');state='dead_pause';}}
     if(claimAT>0)claimAT-=dt;if(shakeD>0)shakeD-=dt;
     upP(dt);upFT(dt);
-    if(state==='map')renderMap(time);else if(state==='hangar')renderHangar(time);else render(time);
+    if(state==='map')renderMap(time);else if(state==='hangar')renderHangar(time);else if(state==='threatBriefing'||state==='bossIntro'){drawBg(time);render(time);}else render(time);
     requestAnimationFrame(loop);
 }
 initG();requestAnimationFrame(loop);
